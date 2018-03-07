@@ -1,0 +1,9 @@
+*~
+\#*\#
+build/
+bin/*
+!bin/media/
+bin/media/textures
+bin/media/models
+!bin/media/shaders/
+!bin/media/shaders/*

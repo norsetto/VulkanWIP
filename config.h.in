@@ -1,0 +1,7 @@
+//Version
+#define VERSION "@PROJECT_VERSION@"
+#define BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+#define SHADERS_LOCATION "@RUN_DIR@/media/shaders/"
+#define DATA_LOCATION "@RUN_DIR@/media/textures/"
+#define MODELS_LOCATION "@RUN_DIR@/media/models/"
+#define _unused(x) ((void)(x))
