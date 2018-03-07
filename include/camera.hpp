@@ -14,24 +14,24 @@
 #include <math.h>
 
 struct Frustum {
-	glm::vec4 near_plane;
-	glm::vec4 far_plane;
-	glm::vec4 left_plane;
-	glm::vec4 right_plane;
-	glm::vec4 bottom_plane;
-	glm::vec4 top_plane;
+  glm::vec4 near_plane;
+  glm::vec4 far_plane;
+  glm::vec4 left_plane;
+  glm::vec4 right_plane;
+  glm::vec4 bottom_plane;
+  glm::vec4 top_plane;
 };
 
 class Camera {
 
-struct AABB {
+  struct AABB {
 
-	glm::vec3 centre;
-	glm::vec3 halfSize;
+    glm::vec3 centre;
+    glm::vec3 halfSize;
 
-	AABB(glm::vec3 centre = {}, glm::vec3 halfSize = {}) : centre(centre), halfSize(halfSize) {};
+    AABB(glm::vec3 centre = {}, glm::vec3 halfSize = {}) : centre(centre), halfSize(halfSize) {};
 
-};
+  };
 
 public:
 
@@ -163,10 +163,10 @@ void Camera::rotate(float delta_x, float delta_y) {
 }
 
 void Camera::lookAt(glm::vec3 position) {
-	glm::vec3 direction = glm::normalize(position - this->position);
-	pitch = asin(direction.y);
-	yaw = atan2(direction.x, -direction.z);
-	update();
+  glm::vec3 direction = glm::normalize(position - this->position);
+  pitch = asin(direction.y);
+  yaw = atan2(direction.x, -direction.z);
+  update();
 }
 
 void Camera::update(void) {
