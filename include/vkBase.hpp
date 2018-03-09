@@ -273,7 +273,7 @@ void VkBase::checkInstanceLayers(std::vector<const char *> &requiredInstanceLaye
 #ifdef VK_DEBUG
 void VkBase::createInstance(std::vector<const char *> &requiredLayers, const std::vector<const char *> &requiredExtensions)
 #else
-  void Vkbase::createInstance(const std::vector<const char *> &requiredExtensions)
+void VkBase::createInstance(const std::vector<const char *> &requiredExtensions)
 #endif  
 {
   uint32_t extensionCount = 0;
