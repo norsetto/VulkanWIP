@@ -470,13 +470,9 @@ int main(int argc, char ** argv)
       vkDestroyShaderModule(device, shaderStage.module, nullptr);
     }
     vkDestroyBuffer(device, stagingBufferImage, nullptr);
-
     vkDestroyBuffer(device, stagingBufferNormal, nullptr);
-
     vkFreeMemory(device, stagingBufferMemoryImage, nullptr);
-
     vkFreeMemory(device, stagingBufferMemoryNormal, nullptr);
-
     vkDestroySampler(device, SamplerDiffuse, nullptr);
     vkDestroySampler(device, SamplerNormal, nullptr);
     vkDestroyImage(device, ImageDiffuse, nullptr);

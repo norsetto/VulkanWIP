@@ -1097,19 +1097,13 @@ void VkBase::copyDataToBuffer(const VkDeviceMemory memory, void* data, const siz
   void* local_data;
 
   vkMapMemory(m_device, memory, 0, data_size, 0, &local_data);
-
   std::memcpy(local_data, data, data_size);
-
   VkMappedMemoryRange memory_range = {};
-
   memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-
   memory_range.memory = memory;
-
   memory_range.size = VK_WHOLE_SIZE;
 
   vkFlushMappedMemoryRanges(m_device, 1, &memory_range);
-
   vkUnmapMemory(m_device, memory);
 }
 
