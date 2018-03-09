@@ -15,7 +15,7 @@ class VkBase
 {
 public:
 
-  enum VideoBuffer {
+  enum VideoBuffer: uint32_t {
     SINGLE_BUFFER = 1,
     DOUBLE_BUFFER = 2,
     TRIPLE_BUFFER = 3

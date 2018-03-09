@@ -155,10 +155,10 @@ void Camera::change_speed(float delta_speed) {
 void Camera::rotate(float delta_x, float delta_y) {
   yaw   += delta_x * rate;
   pitch += delta_y * rate;
-  yaw -= 2.0f * M_PI * truncf(0.5f * yaw / M_PI);
-  if (pitch >  M_PI_2 - 0.5f * fov) {
-    pitch =  M_PI_2 - 0.5f * fov;
-  } else if (pitch < -M_PI_2 + 0.5f * fov) pitch = -M_PI_2 + 0.5f * fov;
+  yaw -= 2.0f * float(M_PI) * truncf(0.5f * yaw / float(M_PI));
+  if (pitch >  float(M_PI_2) - 0.5f * fov) {
+    pitch =  float(M_PI_2) - 0.5f * fov;
+  } else if (pitch < -float(M_PI_2) + 0.5f * fov) pitch = -float(M_PI_2) + 0.5f * fov;
   update();
 }
 
