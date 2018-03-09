@@ -1114,7 +1114,7 @@ int main(int argc, char ** argv) {
       else {
 	z_rot_axis = sqrt(z_rot_axis);
       }
-      glm::mat4 model = glm::rotate(glm::mat4(), time * glm::radians(90.0f), glm::vec3(x_rot_axis, y_rot_axis, z_rot_axis));
+      glm::mat4 model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(x_rot_axis, y_rot_axis, z_rot_axis));
       glm::mat4 view = glm::lookAt(glm::vec3(2.0f, 2.0f, -2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
       glm::mat4 proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float)swapChainExtent.height, 0.1f, 10.0f);
       ubo.mvp = proj * view * model;
@@ -1123,11 +1123,8 @@ int main(int argc, char ** argv) {
       vkMapMemory(device, stagingUniformBufferMemory, 0, sizeof(ubo), 0, &data);
       memcpy(data, &ubo, sizeof(ubo));
       VkMappedMemoryRange memory_range = {};
-
       memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-
       memory_range.memory = stagingUniformBufferMemory;
-
       memory_range.size = VK_WHOLE_SIZE;
 
       vkFlushMappedMemoryRanges(device, 1, &memory_range);
