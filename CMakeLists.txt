@@ -10,6 +10,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 set(RUN_DIR ${PROJECT_SOURCE_DIR}/bin)
 
+# Define C++ version to be used for building the project
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 configure_file("${PROJECT_SOURCE_DIR}/config.h.in" "${PROJECT_BINARY_DIR}/config.h")
 include_directories("${PROJECT_BINARY_DIR}")
 
@@ -19,15 +23,13 @@ set(DEMOS
   )
 
 # Libraries
-find_package(PkgConfig REQUIRED)
-
-pkg_search_module(GLFW REQUIRED glfw3)
-include_directories(${GLFW_INCLUDE_DIRS})
+find_package (glfw3 REQUIRED)
+include_directories(${glfw3_INCLUDE_DIRS})
 
 find_package (Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
 
-set(COMMON_LIBS ${GLFW_LIBRARIES} ${Vulkan_LIBRARIES})
+set(COMMON_LIBS glfw ${Vulkan_LIBRARIES})
 
 foreach(DEMO ${DEMOS})
   add_custom_target("compile_shader_${DEMO}" ALL "python" "compileshaders.py" "${DEMO}"
@@ -41,7 +43,11 @@ endforeach(DEMO)
 
 include_directories(include)
 
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+  add_definitions(-DVK_DEBUG)
+endif ()
+  
 if (CMAKE_CXX_COMPILER_ID STREQUAL GNU OR CMAKE_CXX_COMPILER_ID STREQUAL Clang)
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -std=c++14 -march=native -O2 -flto")
-  set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG}   -Wall -std=c++14 -march=native -O0 -flto -DVK_DEBUG")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Wall -march=native -O2 -flto")
+  set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG}   -Wall -march=native -O0 -flto")
 endif()
