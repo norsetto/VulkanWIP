@@ -5,7 +5,7 @@ project (vulkan_demos VERSION 0.0.0 DESCRIPTION "Various Vulkan (tm) demos")
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
-  
+
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 set(RUN_DIR ${PROJECT_SOURCE_DIR}/bin)
@@ -22,14 +22,28 @@ set(DEMOS
   model
   )
 
+# The Python interpreter is needed to compile shaders
+include(FindPythonInterp)
+
 # Libraries
-find_package (glfw3 REQUIRED)
+if(WIN32)
+	find_path(glfw3_DIR GLFW $ENV{PROGRAMFILES}/GLFW/ DOC "The directory where GLFW resides")
+	find_path(glfw3_INCLUDE_DIRS GLFW/glfw3.h $ENV{PROGRAMFILES}/GLFW/include ${glfw3_DIR}/include DOC "The directory where GLFW/glfw3.h resides")
+	find_library(glfw3_LIBRARIES NAMES glfw3dll GLFW PATHS $ENV{PROGRAMFILES}/GLFW/lib ${glfw3_DIR}/lib DOC "The GLFW library")
+else()	
+	find_package(glfw3 REQUIRED)
+endif()
 include_directories(${glfw3_INCLUDE_DIRS})
 
-find_package (Vulkan REQUIRED)
+find_package(Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
+set(COMMON_LIBS ${glfw3_LIBRARIES} ${Vulkan_LIBRARIES})
 
-set(COMMON_LIBS glfw ${Vulkan_LIBRARIES})
+if(WIN32)
+	set(GLM_ROOT_DIR "glm-0.9.8.3" CACHE STRING "The directory where glm is located")
+	find_path(glm_INCLUDE_DIRS glm/glm.hpp PATHS $ENV{SYSTEMDRIVE}/${GLM_ROOT_DIR} $ENV{HOMEDRIVE}/${GLM_ROOT_DIR} $ENV{PROGRAMFILES}/${GLM_ROOT_DIR} DOC "The directory where glm.hpp resides")
+	include_directories(${glm_INCLUDE_DIRS})
+endif()
 
 foreach(DEMO ${DEMOS})
   add_custom_target("compile_shader_${DEMO}" ALL "python" "compileshaders.py" "${DEMO}"

@@ -101,7 +101,7 @@ int main(int argc, char ** argv)
   std::cout << argv[0] << " Version " VERSION " build " BUILD_TYPE << std::endl;
   try {
     //Load assets
-    VkTools::load3DModelFromObjFile( MODELS_LOCATION "kila.obj", model, true);
+    VkTools::load3DModelFromObjFile(MODELS_LOCATION "kila.obj", model, true);
 
     if (model.stride != 14) {
       throw std::runtime_error("model is not valid!");
