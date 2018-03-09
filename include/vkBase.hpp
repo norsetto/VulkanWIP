@@ -25,7 +25,12 @@ public:
   virtual ~VkBase();
 
   //Instance and device methods
+#ifdef VK_DEBUG
+  void checkInstanceLayers(std::vector<const char *> &requiredLayers);
+  void createInstance(std::vector<const char *> &requiredLayers, const std::vector<const char *> &requiredExtensions = {});
+#else
   void createInstance(const std::vector<const char *> &requiredExtensions = {});
+#endif  
   void selectPhysicalDevice(int deviceId = -1);
   void checkDeviceExtensions(const std::vector<const char *> &extensions);
   void checkDeviceExtensions(void);
@@ -227,7 +232,49 @@ VkBase::~VkBase()
   }
 }
 
-void VkBase::createInstance(const std::vector<const char *> &requiredExtensions)
+#ifdef VK_DEBUG
+void VkBase::checkInstanceLayers(std::vector<const char *> &requiredInstanceLayers)
+  {
+    std::vector<const char*> unsupportedInstanceLayers;
+  
+    uint32_t instanceLayerCount = 0;
+    vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr);
+    std::cout << instanceLayerCount << " layers supported" << std::endl;
+  
+    std::vector<VkLayerProperties> instanceLayers(instanceLayerCount);
+    vkEnumerateInstanceLayerProperties(&instanceLayerCount, instanceLayers.data());
+
+    std::cout << "available layers:" << std::endl;
+
+    for (const auto& instanceLayer : instanceLayers) {
+      std::cout << "\t" << instanceLayer.layerName << std::endl;
+    }
+
+    for (uint32_t i = 0; i < requiredInstanceLayers.size(); i++) {
+      VkBool32 isSupported = false;
+      for (uint32_t j = 0; j < instanceLayerCount; j++) {
+	if (!strcmp(requiredInstanceLayers[i], instanceLayers[j].layerName)) {
+	  isSupported = true;
+	  break;
+	}
+      }
+      if (!isSupported) {
+	std::cout << "No layer support found for " << requiredInstanceLayers[i] << std::endl;
+	unsupportedInstanceLayers.push_back(requiredInstanceLayers[i]);
+      }
+    }
+    for (auto unsupportedInstanceLayer : unsupportedInstanceLayers) {
+      auto it = std::find(requiredInstanceLayers.begin(), requiredInstanceLayers.end(), unsupportedInstanceLayer);
+      if (it != requiredInstanceLayers.end()) requiredInstanceLayers.erase(it);
+    }
+  }
+#endif  
+
+#ifdef VK_DEBUG
+void VkBase::createInstance(std::vector<const char *> &requiredLayers, const std::vector<const char *> &requiredExtensions)
+#else
+  void Vkbase::createInstance(const std::vector<const char *> &requiredExtensions)
+#endif  
 {
   uint32_t extensionCount = 0;
 
@@ -274,20 +321,21 @@ void VkBase::createInstance(const std::vector<const char *> &requiredExtensions)
   InstanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(enabledInstanceExtensions.size());
   InstanceCreateInfo.ppEnabledExtensionNames = enabledInstanceExtensions.data();
 
+  std::cout << "required extensions:" << std::endl;
+  for (const auto& requiredExtension : enabledInstanceExtensions) {
+    std::cout << "\t" << requiredExtension << std::endl;
+  }
 #ifdef VK_DEBUG
-  std::vector<const char *> enabledInstanceLayers;
-  enabledInstanceLayers.push_back("VK_LAYER_LUNARG_standard_validation");
-  InstanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(enabledInstanceLayers.size());
-  InstanceCreateInfo.ppEnabledLayerNames = enabledInstanceLayers.data();
+  checkInstanceLayers(requiredLayers);
+  InstanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size());
+  InstanceCreateInfo.ppEnabledLayerNames = requiredLayers.data();
+  std::cout << "required layers:" << std::endl;
+  for (const auto& requiredLayer : requiredLayers) {
+    std::cout << "\t" << requiredLayer << std::endl;
+  }
 #else
   InstanceCreateInfo.enabledLayerCount = 0;
 #endif
-
-  std::cout << "required extensions:" << std::endl;
-
-  for (const auto& required_extension : enabledInstanceExtensions) {
-    std::cout << "\t" << required_extension << std::endl;
-  }
 
   VkResult res;
   res = vkCreateInstance(&InstanceCreateInfo, nullptr, &m_instance);

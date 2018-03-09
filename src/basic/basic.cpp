@@ -18,6 +18,7 @@
 #include <string>
 #include <iomanip>
 #include <sstream>
+#include <algorithm>
 
 const int WIDTH = 800;
 const int HEIGHT = 600;
@@ -256,7 +257,40 @@ static void set_instance() {
 
 #ifdef VK_DEBUG
   std::vector<const char *> enabledInstanceLayers;
+  std::vector<const char*> unsupportedInstanceLayers;
   enabledInstanceLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+  enabledInstanceLayers.push_back("VK_LAYER_LUNARG_api_dump");
+  
+  uint32_t layerCount = 0;
+  vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+  std::cout << layerCount << " layers supported" << std::endl;
+  
+  std::vector<VkLayerProperties> layers(layerCount);
+  vkEnumerateInstanceLayerProperties(&layerCount, layers.data());
+
+  std::cout << "available layers:" << std::endl;
+
+  for (const auto& layer : layers) {
+    std::cout << "\t" << layer.layerName << std::endl;
+  }
+
+  for (uint32_t i = 0; i < enabledInstanceLayers.size(); i++) {
+    VkBool32 isSupported = false;
+    for (uint32_t j = 0; j < layerCount; j++) {
+      if (!strcmp(enabledInstanceLayers[i], layers[j].layerName)) {
+	isSupported = true;
+	break;
+      }
+    }
+    if (!isSupported) {
+      std::cout << "No layer support found for " << enabledInstanceLayers[i] << std::endl;
+      unsupportedInstanceLayers.push_back(enabledInstanceLayers[i]);
+    }
+  }
+  for (auto unsupportedLayer : unsupportedInstanceLayers) {
+    auto it = std::find(enabledInstanceLayers.begin(), enabledInstanceLayers.end(), unsupportedLayer);
+    if (it != enabledInstanceLayers.end()) enabledInstanceLayers.erase(it);
+  }
   InstanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(enabledInstanceLayers.size());
   InstanceCreateInfo.ppEnabledLayerNames = enabledInstanceLayers.data();
 #else

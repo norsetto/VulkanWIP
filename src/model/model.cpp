@@ -127,8 +127,16 @@ int main(int argc, char ** argv)
 
     //Create instance, select physical device, check queues and device extensions
     vkTest = new VkTest;
-    //        vkTest->createInstance({ "VK_KHR_get_physical_device_properties2" });
+  
+#ifdef VK_DEBUG
+    std::vector<const char *> requiredInstanceLayers;
+    requiredInstanceLayers.push_back("VK_LAYER_LUNARG_standard_validation");
+    requiredInstanceLayers.push_back("VK_LAYER_LUNARG_api_dump");
+    vkTest->createInstance(requiredInstanceLayers);
+#else
     vkTest->createInstance();
+#endif
+    
     vkTest->selectPhysicalDevice();
     depthFormat = vkTest->findSupportedFormat({ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM },
 
