@@ -20,5 +20,7 @@ A WIP collection of simple Vulkan demos which I'm developing.
 
 ## Acknowledgments
 [Alexander Overvoorde](https://vulkan-tutorial.com/) - A very well written introduction tutorial
+
 [Sascha Willems](https://github.com/SaschaWillems/Vulkan) - A source of fantastic Vulkan examples and demos
+
 [Vulkan Cookbook](https://github.com/PacktPublishing/Vulkan-Cookbook) - By Pawel Lapinski
