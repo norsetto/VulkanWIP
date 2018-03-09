@@ -1,5 +1,8 @@
 *~
 \#*\#
+.kdev4/
+.gitignore
+vulkan.kdev4
 build/
 bin/*
 !bin/media/
