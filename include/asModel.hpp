@@ -114,8 +114,8 @@ private:
     uint32_t num_meshes = 0;
     
     //Indices buffer
-    uint32_t *num_indices;
-    std::vector<uint32_t> *indices;
+    uint32_t *num_indices = nullptr;
+    std::vector<uint32_t> *indices = nullptr;
 
     //Material properties
     struct MATERIALS_BLOCK {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vkTools.hpp"
+#include "GlslangToSpv.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -75,7 +76,8 @@ public:
   virtual void createFrameBuffers(void);
 
   //Graphics and Compute pipelines
-  void createShaderModule(const std::vector<char>& code, VkShaderModule &shaderModule);
+  template<typename T, typename A>
+  void createShaderModule(std::vector<T, A> const& code, VkShaderModule &shaderModule);
   void createShaderStage(const std::string& filename, const VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo &shaderStageInfo);
 
   //Resource and memory methods
@@ -1041,12 +1043,13 @@ void VkBase::createFrameBuffers()
   }
 }
 
-void VkBase::createShaderModule(const std::vector<char>& code, VkShaderModule &shaderModule)
+template<typename T, typename A>
+void VkBase::createShaderModule(std::vector<T, A> const& code, VkShaderModule &shaderModule)
 {
   VkShaderModuleCreateInfo createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  createInfo.codeSize = code.size();
-  createInfo.pCode = (uint32_t*)code.data();
+  createInfo.codeSize = code.size() * sizeof(T);
+  createInfo.pCode = (const uint32_t *)code.data();
 
   if (vkCreateShaderModule(m_device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
     throw std::runtime_error("failed to create shader module!");
@@ -1060,7 +1063,20 @@ void VkBase::createShaderStage(const std::string& filename, const VkShaderStageF
 
   //Create shader module
   VkShaderModule shaderModule;
-  createShaderModule(shaderCode, shaderModule);
+
+  //If the shader is not a SPIR-V, assume it is glsl
+  if (filename.substr(filename.find_last_of(".") + 1) != "spv") {
+    std::vector<uint32_t> spvCode;
+    glslang::InitializeProcess();
+
+    shaderCode.push_back('\0');
+    VkTools::GLSLtoSPV(stage, shaderCode.data(), spvCode);
+    
+    glslang::FinalizeProcess();
+    
+    createShaderModule(spvCode, shaderModule);
+  } else
+    createShaderModule(shaderCode, shaderModule);
 
   //Create shader stage
   shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

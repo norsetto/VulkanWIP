@@ -285,8 +285,8 @@ int main(int argc, char ** argv)
 
     //Load shaders
     shaderStages.resize(2);
-    vkTest->createShaderStage(SHADERS_LOCATION "asModels/model.vert.spv", VK_SHADER_STAGE_VERTEX_BIT, shaderStages[0]);
-    vkTest->createShaderStage(SHADERS_LOCATION "asModels/model.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT, shaderStages[1]);
+    vkTest->createShaderStage(SHADERS_LOCATION "asModel/model.vert", VK_SHADER_STAGE_VERTEX_BIT, shaderStages[0]);
+    vkTest->createShaderStage(SHADERS_LOCATION "asModel/model.frag", VK_SHADER_STAGE_FRAGMENT_BIT, shaderStages[1]);
 
     //Create the uniform buffer
     uniforms.resize(1);

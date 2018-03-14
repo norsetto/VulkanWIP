@@ -43,7 +43,13 @@ include_directories(${Vulkan_INCLUDE_DIRS})
 find_package(ASSIMP REQUIRED)
 include_directories(${ASSIMP_INCLUDE_DIRS})
 
-set(COMMON_LIBS ${glfw3_LIBRARIES} ${Vulkan_LIBRARIES} ${ASSIMP_LIBRARIES})
+find_package(Threads REQUIRED )
+
+#needed for the on-the-fly compilation of GLSL to SPV
+link_directories(external)
+set(GLSLANG_LIBS SPIRV SPVRemapper glslang OGLCompiler HLSL OSDependent SPIRV-Tools SPIRV-Tools-opt)
+
+set(COMMON_LIBS ${glfw3_LIBRARIES} ${Vulkan_LIBRARIES} ${ASSIMP_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 if(WIN32)
   set(GLM_ROOT_DIR "glm-0.9.8.3" CACHE STRING "The directory where glm is located")
@@ -58,7 +64,7 @@ foreach(DEMO ${DEMOS})
     VERBATIM
     )
   add_executable(${DEMO} src/${DEMO}/${DEMO}.cpp)
-  target_link_libraries(${DEMO} ${COMMON_LIBS})
+  target_link_libraries(${DEMO} ${COMMON_LIBS} ${GLSLANG_LIBS})
 endforeach(DEMO)
 
 include_directories(include)
