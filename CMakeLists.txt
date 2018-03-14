@@ -20,6 +20,7 @@ include_directories("${PROJECT_BINARY_DIR}")
 set(DEMOS
   basic
   model
+  asModel
   )
 
 # The Python interpreter is needed to compile shaders
@@ -38,7 +39,11 @@ endif()
 
 find_package(Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
-set(COMMON_LIBS ${glfw3_LIBRARIES} ${Vulkan_LIBRARIES})
+
+find_package(ASSIMP REQUIRED)
+include_directories(${ASSIMP_INCLUDE_DIRS})
+
+set(COMMON_LIBS ${glfw3_LIBRARIES} ${Vulkan_LIBRARIES} ${ASSIMP_LIBRARIES})
 
 if(WIN32)
   set(GLM_ROOT_DIR "glm-0.9.8.3" CACHE STRING "The directory where glm is located")

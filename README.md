@@ -24,3 +24,5 @@ A WIP collection of simple Vulkan demos which I'm developing.
 [Sascha Willems](https://github.com/SaschaWillems/Vulkan) - A source of fantastic Vulkan examples and demos
 
 [Vulkan Cookbook](https://github.com/PacktPublishing/Vulkan-Cookbook) - By Pawel Lapinski
+
+[Learning Vulkan](https://github.com/PacktPublishing/Learning-Vulkan) - By Parminder Singh

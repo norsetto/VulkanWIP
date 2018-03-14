@@ -41,9 +41,7 @@ VkBuffer vertexBuffer, uniformBuffer, stagingUniformBuffer;
 VkDeviceMemory vertexBufferMemory, uniformBufferMemory, stagingUniformBufferMemory;
 
 VkImage depthImage = VK_NULL_HANDLE;
-
 VkDeviceMemory depthImageMemoryObject = VK_NULL_HANDLE;
-
 VkImageView depthImageView = VK_NULL_HANDLE;
 VkFormat depthFormat;
 
@@ -335,13 +333,9 @@ public:
     renderPassBeginInfo.renderArea.offset = { 0, 0 };
     renderPassBeginInfo.renderArea.extent = m_swapChainExtent;
     std::array<VkClearValue, 2> clearValues = {};
-
-    clearValues[0].color = { 0.1176f, 0.5647f, 1.0f, 1.0f };
-
+    clearValues[0].color = { {0.1176f, 0.5647f, 1.0f, 1.0f} };
     clearValues[1].depthStencil = { 1.0f, 0 };
-
     renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-
     renderPassBeginInfo.pClearValues = clearValues.data();
 
     VkCommandBufferBeginInfo beginInfo = {};
@@ -366,19 +360,15 @@ public:
       vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
 
       for (size_t j = 0; j < model.Parts.size(); ++j) {
-
-	vkCmdDraw(m_commandBuffers[i], model.Parts[j].VertexCount, 1, model.Parts[j].VertexOffset, 0);
-
+        vkCmdDraw(m_commandBuffers[i], model.Parts[j].VertexCount, 1, model.Parts[j].VertexOffset, 0);
       }
-
 
       vkCmdEndRenderPass(m_commandBuffers[i]);
 
       //End render pass
       if (vkEndCommandBuffer(m_commandBuffers[i]) != VK_SUCCESS) {
-	throw std::runtime_error("failed to record command buffer!");
+        throw std::runtime_error("failed to record command buffer!");
       }
     }
   }
-
 };

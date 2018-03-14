@@ -120,9 +120,9 @@ namespace VkTools {
 	glm::vec3 const v2 = { mesh.Data[i2], mesh.Data[i2 + 1], mesh.Data[i2 + 2] };
 	glm::vec3 const v3 = { mesh.Data[i3], mesh.Data[i3 + 1], mesh.Data[i3 + 2] };
 
-	std::array<float, 2> const w1 = { mesh.Data[i1 + texcoord_offset], mesh.Data[i1 + texcoord_offset + 1] };
-	std::array<float, 2> const w2 = { mesh.Data[i2 + texcoord_offset], mesh.Data[i2 + texcoord_offset + 1] };
-	std::array<float, 2> const w3 = { mesh.Data[i3 + texcoord_offset], mesh.Data[i3 + texcoord_offset + 1] };
+	std::array<float, 2> const w1 = { {mesh.Data[i1 + texcoord_offset], mesh.Data[i1 + texcoord_offset + 1]} };
+	std::array<float, 2> const w2 = { {mesh.Data[i2 + texcoord_offset], mesh.Data[i2 + texcoord_offset + 1]} };
+	std::array<float, 2> const w3 = { {mesh.Data[i3 + texcoord_offset], mesh.Data[i3 + texcoord_offset + 1]} };
 
 	float x1 = v2[0] - v1[0];
 	float x2 = v3[0] - v1[0];

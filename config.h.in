@@ -5,3 +5,5 @@
 #define DATA_LOCATION "@RUN_DIR@/media/textures/"
 #define MODELS_LOCATION "@RUN_DIR@/media/models/"
 #define _unused(x) ((void)(x))
+#define vk_min(x,y) (x<y?x:y)
+#define vk_max(x,y) (y>x?y:x)

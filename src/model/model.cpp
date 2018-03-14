@@ -101,7 +101,7 @@ int main(int argc, char ** argv)
   std::cout << argv[0] << " Version " VERSION " build " BUILD_TYPE << std::endl;
   try {
     //Load assets
-    VkTools::load3DModelFromObjFile(MODELS_LOCATION "kila.obj", model, true);
+    VkTools::load3DModelFromObjFile(MODELS_LOCATION "teapot.obj", model, true);
 
     if (model.stride != 14) {
       throw std::runtime_error("model is not valid!");
@@ -110,13 +110,13 @@ int main(int argc, char ** argv)
     std::vector<unsigned char> image_data;
     int image_width, image_height, image_num_components, image_data_size;
 
-    VkTools::loadTextureDataFromFile(DATA_LOCATION "KilaMain_Diff.png", 0, image_data, &image_width, &image_height, &image_num_components, &image_data_size);
+    VkTools::loadTextureDataFromFile(DATA_LOCATION "metal.png", 0, image_data, &image_width, &image_height, &image_num_components, &image_data_size);
     std::cout << "loaded " << image_width << "X" << image_height << " (" << image_data_size / 1048576 << "MB)" << std::endl;
 		
     std::vector<unsigned char> normal_data;
     int normal_width, normal_height, normal_num_components, normal_data_size;
 
-    VkTools::loadTextureDataFromFile(DATA_LOCATION "KilaMain_Norm.png", 0, normal_data, &normal_width, &normal_height, &normal_num_components, &normal_data_size);
+    VkTools::loadTextureDataFromFile(DATA_LOCATION "normal.png", 0, normal_data, &normal_width, &normal_height, &normal_num_components, &normal_data_size);
     std::cout << "loaded " << normal_width << "X" << normal_height << " (" << normal_data_size / 1048576 << "MB)" << std::endl;
 		
     glfwInit();
@@ -138,16 +138,10 @@ int main(int argc, char ** argv)
 #endif
     
     vkTest->selectPhysicalDevice();
-    depthFormat = vkTest->findSupportedFormat({ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM },
-
-					      VK_IMAGE_TILING_OPTIMAL,
-
-					      VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT );
+    depthFormat = vkTest->findSupportedFormat({ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D16_UNORM }, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT );
 
 #ifdef VK_DEBUG
-
     std::cout << "Selected format " << depthFormat << std::endl;
-
 #endif
 
     vkTest->selectGraphicsQueue();
@@ -175,9 +169,7 @@ int main(int argc, char ** argv)
 
     //Set camera
     glm::vec3 model_centre = glm::vec3(0.5f * (model.min_x + model.max_x),
-
 				       0.5f * (model.min_y + model.max_y),
-
 				       0.5f * (model.min_z + model.max_z));
     glm::vec3 model_size = glm::vec3(model.max_x - model.min_x,
 				     model.max_y - model.min_y,
