@@ -25,13 +25,16 @@
 class VkTest: public VkBase
 {
 public:
-    void createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo> shaderStages);
-    void createFrameBuffers(void);
+    using VkBase::createFrameBuffers;
+    void createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo> shaderStages, VkSampleCountFlagBits samples);
+    void createRenderPass(VkSampleCountFlagBits samples);
+    virtual void createFrameBuffers(VkSampleCountFlagBits samples);
     void createDescriptorSetLayouts(void);
     void allocateDescriptorSets(Model *model);
     void updateDescriptorSets(const VkBase::Buffer &uniformBuffer);
     void updateDescriptorSets(Model *model);
     void recordCommandBuffers(Model *model);
+    VkSampleCountFlagBits getMaxSampleCount(void);
 
     //Setters
     void setDepthFormat(VkFormat depthFormat) { this->depthFormat = depthFormat; };
@@ -50,6 +53,30 @@ public:
             vkFreeMemory(m_device, depthImageMemoryObject, nullptr);
             depthImageMemoryObject = VK_NULL_HANDLE;
         }
+        if (depthImageViewMSAA != VK_NULL_HANDLE) {
+            vkDestroyImageView(m_device, depthImageViewMSAA, nullptr);
+            depthImageViewMSAA = VK_NULL_HANDLE;
+        }
+        if (depthImageMemoryObjectMSAA != VK_NULL_HANDLE) {
+            vkFreeMemory(m_device, depthImageMemoryObjectMSAA, nullptr);
+            depthImageMemoryObjectMSAA = VK_NULL_HANDLE;
+        }
+        if (depthImageMSAA != VK_NULL_HANDLE) {
+            vkDestroyImage(m_device, depthImageMSAA, nullptr);
+            depthImageMSAA = VK_NULL_HANDLE;
+        }
+        if (imageViewMSAA != VK_NULL_HANDLE) {
+            vkDestroyImageView(m_device, imageViewMSAA, nullptr);
+            imageViewMSAA = VK_NULL_HANDLE;
+        }
+        if (imageMemoryObjectMSAA != VK_NULL_HANDLE) {
+            vkFreeMemory(m_device, imageMemoryObjectMSAA, nullptr);
+            imageMemoryObjectMSAA = VK_NULL_HANDLE;
+        }
+        if (imageMSAA != VK_NULL_HANDLE) {
+            vkDestroyImage(m_device, imageMSAA, nullptr);
+            imageMSAA = VK_NULL_HANDLE;
+        }
         for (auto descriptorSetLayout : descriptorSetLayouts) {
             if (descriptorSetLayout != VK_NULL_HANDLE) {
                 vkDestroyDescriptorSetLayout(m_device, descriptorSetLayout, nullptr);
@@ -60,9 +87,9 @@ public:
     };
     
 private:
-    VkImage depthImage = VK_NULL_HANDLE;
-    VkDeviceMemory depthImageMemoryObject = VK_NULL_HANDLE;
-    VkImageView depthImageView = VK_NULL_HANDLE;
+    VkImage depthImage = VK_NULL_HANDLE, depthImageMSAA = VK_NULL_HANDLE, imageMSAA = VK_NULL_HANDLE;
+    VkDeviceMemory depthImageMemoryObject = VK_NULL_HANDLE, depthImageMemoryObjectMSAA = VK_NULL_HANDLE, imageMemoryObjectMSAA = VK_NULL_HANDLE;
+    VkImageView depthImageView = VK_NULL_HANDLE, depthImageViewMSAA = VK_NULL_HANDLE, imageViewMSAA = VK_NULL_HANDLE;
     VkFormat depthFormat;
     std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
     std::vector<VkDescriptorSet> descriptorSets;
@@ -84,6 +111,7 @@ std::vector<VkPipelineShaderStageCreateInfo> shaderStages = {};
 float frameTime;
 Camera *camera;
 float max_view;
+VkSampleCountFlagBits sampleCountMSAA = VK_SAMPLE_COUNT_8_BIT;
 
 struct UniformBufferObject {
   glm::mat4 mv;
@@ -153,8 +181,8 @@ static void onWindowResize(GLFWwindow* window, int w, int h)
 
   vkDeviceWaitIdle(device);
   vkTest->createSwapchain({static_cast<uint32_t>(w), static_cast<uint32_t>(h)}, videoBuffer, mode);
-  vkTest->createGraphicsPipeline(shaderStages);
-  vkTest->createFrameBuffers();
+  vkTest->createGraphicsPipeline(shaderStages, sampleCountMSAA);
+  vkTest->createFrameBuffers(sampleCountMSAA);
   vkTest->recordCommandBuffers(model);
   
   width = w;
@@ -196,7 +224,9 @@ int main(int argc, char ** argv)
     vkTest->checkDeviceExtensions();
 
     //Set Logical device
-    vkTest->setLogicalDevice();
+    VkPhysicalDeviceFeatures deviceFeatures = {};
+    deviceFeatures.sampleRateShading = VK_TRUE;
+    vkTest->setLogicalDevice(deviceFeatures);
 
     //Create the command pool
     vkTest->createCommandPool();
@@ -227,63 +257,10 @@ int main(int argc, char ** argv)
     //Create swapchain
     vkTest->createSwapchain({static_cast<uint32_t>(width), static_cast<uint32_t>(height)}, videoBuffer, mode);
 
-    //Create render pass with one color and one depth attachment
-    VkAttachmentDescription colorAttachment = {};
-    colorAttachment.format = vkTest->swapchainImageFormat();
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-    VkAttachmentReference colorAttachmentRef = {};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentDescription depthAttachment = {};
-    depthAttachment.format = depthFormat;
-    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    VkAttachmentReference depthAttachmentRef = {};
-    depthAttachmentRef.attachment = 1;
-    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    std::vector<VkSubpassDependency> subpass_dependencies = {
-      {
-	VK_SUBPASS_EXTERNAL,
-	0,
-	VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-	VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-	VK_ACCESS_MEMORY_READ_BIT,
-	VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-	VK_DEPENDENCY_BY_REGION_BIT
-      },
-      {
-	0,
-	VK_SUBPASS_EXTERNAL,
-	VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-	VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-	VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-	VK_ACCESS_MEMORY_READ_BIT,
-	VK_DEPENDENCY_BY_REGION_BIT
-      }
-    };
-
-    VkSubpassDescription subpass = {};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;
-    vkTest->createRenderPass({ colorAttachment, depthAttachment }, { subpass }, subpass_dependencies);
-
+    //Create render pass with two color and two depth attachments
+    sampleCountMSAA = vkTest->getMaxSampleCount();
+    vkTest->createRenderPass(sampleCountMSAA);
+    
     //Load shaders
     shaderStages.resize(2);
     vkTest->createShaderStage(SHADERS_LOCATION "asModel/model.vert", VK_SHADER_STAGE_VERTEX_BIT, shaderStages[0]);
@@ -306,10 +283,10 @@ int main(int argc, char ** argv)
     
     //Set the graphics pipeline
     vkTest->loadPipelineCacheFromDisk(pipelineCacheFilename, true);
-    vkTest->createGraphicsPipeline(shaderStages);
+    vkTest->createGraphicsPipeline(shaderStages, sampleCountMSAA);
 
     //Setup framebuffer
-    vkTest->createFrameBuffers();
+    vkTest->createFrameBuffers(sampleCountMSAA);
 
     //Set camera
     glm::vec3 model_centre = 0.5f * (model->min() + model->max());
@@ -400,7 +377,8 @@ int main(int argc, char ** argv)
         frame++;
         if (total_time >= TIME_INTERVAL) {
             std::stringstream stream;
-            stream << WINDOW_TITLE << " - " << std::fixed << std::setprecision(0) << (float)frame / total_time << " fps";
+            stream << WINDOW_TITLE << " - " << std::fixed << std::setprecision(0) << (float)frame / total_time << " fps - ";
+            stream << sampleCountMSAA << "x MSAA";
             glfwSetWindowTitle(window, stream.str().c_str());
             frame = 0;
             total_time = 0.0f;
@@ -433,7 +411,7 @@ int main(int argc, char ** argv)
   return EXIT_SUCCESS;
 }
 
-void VkTest::createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo> shaderStages)
+void VkTest::createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo> shaderStages, VkSampleCountFlagBits samples)
 {
     VkVertexInputBindingDescription bindingDescription = {};
     bindingDescription.binding = 0;
@@ -513,9 +491,9 @@ void VkTest::createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo>
 
     VkPipelineMultisampleStateCreateInfo multisampling = {};
     multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    multisampling.sampleShadingEnable = VK_FALSE;
-    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    multisampling.minSampleShading = 1.0f;
+    multisampling.sampleShadingEnable = VK_TRUE;
+    multisampling.rasterizationSamples = samples;
+    multisampling.minSampleShading = 0.2f;
     multisampling.pSampleMask = nullptr;
     multisampling.alphaToCoverageEnable = VK_FALSE;
     multisampling.alphaToOneEnable = VK_FALSE;
@@ -584,7 +562,7 @@ void VkTest::createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo>
     }
 }
 
-void VkTest::createFrameBuffers()
+void VkTest::createFrameBuffers(VkSampleCountFlagBits samples)
 {      
     //Create image and image view for the depth buffer
     if (depthImageView != VK_NULL_HANDLE) {
@@ -599,13 +577,126 @@ void VkTest::createFrameBuffers()
       vkDestroyImage(m_device, depthImage, nullptr);
       depthImage = VK_NULL_HANDLE;
     }
+    if (depthImageViewMSAA != VK_NULL_HANDLE) {
+      vkDestroyImageView(m_device, depthImageViewMSAA, nullptr);
+      depthImageViewMSAA = VK_NULL_HANDLE;
+    }
+    if (depthImageMemoryObjectMSAA != VK_NULL_HANDLE) {
+      vkFreeMemory(m_device, depthImageMemoryObjectMSAA, nullptr);
+      depthImageMemoryObjectMSAA = VK_NULL_HANDLE;
+    }
+    if (depthImageMSAA != VK_NULL_HANDLE) {
+      vkDestroyImage(m_device, depthImageMSAA, nullptr);
+      depthImageMSAA = VK_NULL_HANDLE;
+    }
+    if (imageViewMSAA != VK_NULL_HANDLE) {
+      vkDestroyImageView(m_device, imageViewMSAA, nullptr);
+      imageViewMSAA = VK_NULL_HANDLE;
+    }
+    if (imageMemoryObjectMSAA != VK_NULL_HANDLE) {
+      vkFreeMemory(m_device, imageMemoryObjectMSAA, nullptr);
+      imageMemoryObjectMSAA = VK_NULL_HANDLE;
+    }
+    if (imageMSAA != VK_NULL_HANDLE) {
+      vkDestroyImage(m_device, imageMSAA, nullptr);
+      imageMSAA = VK_NULL_HANDLE;
+    }
+
     create2DImageAndView(depthFormat, m_swapChainExtent, 1, 1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, depthImage, depthImageMemoryObject, depthImageView);
+
+    create2DImageAndView(depthFormat, m_swapChainExtent, 1, 1, samples, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |  VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, depthImageMSAA, depthImageMemoryObjectMSAA, depthImageViewMSAA);
+
+    create2DImageAndView(m_swapchain_image_format, m_swapChainExtent, 1, 1, samples, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT, imageMSAA, imageMemoryObjectMSAA, imageViewMSAA);
 
     //Create framebuffer
     m_swapChainFramebuffers.resize(m_swapChainImageView.size());
     for (size_t i = 0; i < m_swapChainImageView.size(); i++) {
-      createFramebuffer({ m_swapChainImageView[i], depthImageView }, m_swapChainExtent, 1, m_swapChainFramebuffers[i]);
+      createFramebuffer({ imageViewMSAA, m_swapChainImageView[i], depthImageViewMSAA, depthImageView }, m_swapChainExtent, 1, m_swapChainFramebuffers[i]);
     }
+}
+
+void VkTest::createRenderPass(VkSampleCountFlagBits samples)
+{
+    VkAttachmentDescription colorAttachment = {};
+    colorAttachment.format = vkTest->swapchainImageFormat();
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorAttachmentRef = {};
+    colorAttachmentRef.attachment = 0;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentDescription colorAttachmentMSAA = {};
+    colorAttachmentMSAA.format = vkTest->swapchainImageFormat();
+    colorAttachmentMSAA.samples = samples;
+    colorAttachmentMSAA.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachmentMSAA.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachmentMSAA.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachmentMSAA.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachmentMSAA.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachmentMSAA.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorAttachmentRefMSAA = {};
+    colorAttachmentRefMSAA.attachment = 1;
+    colorAttachmentRefMSAA.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentDescription depthAttachment = {};
+    depthAttachment.format = depthFormat;
+    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentDescription depthAttachmentMSAA = {};
+    depthAttachmentMSAA.format = depthFormat;
+    depthAttachmentMSAA.samples = samples;
+    depthAttachmentMSAA.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachmentMSAA.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachmentMSAA.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachmentMSAA.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachmentMSAA.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachmentMSAA.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentRef = {};
+    depthAttachmentRef.attachment = 2;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    std::vector<VkSubpassDependency> subpass_dependencies = {
+      {
+	VK_SUBPASS_EXTERNAL,
+	0,
+	VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+	VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+	VK_ACCESS_MEMORY_READ_BIT,
+	VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+	VK_DEPENDENCY_BY_REGION_BIT
+      },
+      {
+	0,
+	VK_SUBPASS_EXTERNAL,
+	VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+	VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+	VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+	VK_ACCESS_MEMORY_READ_BIT,
+	VK_DEPENDENCY_BY_REGION_BIT
+      }
+    };
+
+    VkSubpassDescription subpass = {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    subpass.pResolveAttachments = &colorAttachmentRefMSAA;
+    VkBase::createRenderPass({ colorAttachmentMSAA, colorAttachment, depthAttachmentMSAA, depthAttachment }, { subpass }, subpass_dependencies);
 }
 
 void VkTest::allocateDescriptorSets(Model *model)
@@ -729,9 +820,11 @@ void VkTest::recordCommandBuffers(Model *model)
     renderPassBeginInfo.renderPass = m_renderPass;
     renderPassBeginInfo.renderArea.offset = { 0, 0 };
     renderPassBeginInfo.renderArea.extent = m_swapChainExtent;
-    std::array<VkClearValue, 2> clearValues = {};
+    std::array<VkClearValue, 4> clearValues = {};
     clearValues[0].color = { {0.1176f, 0.5647f, 1.0f, 1.0f} };
-    clearValues[1].depthStencil = { 1.0f, 0 };
+    clearValues[1].color = { {0.1176f, 0.5647f, 1.0f, 1.0f} };
+    clearValues[2].depthStencil = { 1.0f, 0 };
+    clearValues[3].depthStencil = { 1.0f, 0 };
     renderPassBeginInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
     renderPassBeginInfo.pClearValues = clearValues.data();
 
@@ -767,4 +860,18 @@ void VkTest::recordCommandBuffers(Model *model)
         throw std::runtime_error("failed to record command buffer!");
       }
     }
+}
+
+//https://github.com/SaschaWillems/Vulkan/blob/master/examples/multisampling/multisampling.cpp
+VkSampleCountFlagBits VkTest::getMaxSampleCount(void)
+{
+    VkSampleCountFlags counts = std::min(m_devProperties.limits.framebufferColorSampleCounts, m_devProperties.limits.framebufferDepthSampleCounts);
+    
+    if (counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
+	if (counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
+	if (counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
+	if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
+	if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
+	if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
+    return VK_SAMPLE_COUNT_1_BIT;
 }
