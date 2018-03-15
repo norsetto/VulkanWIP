@@ -6,7 +6,7 @@ A WIP collection of simple Vulkan demos which I'm developing.
 ## Demos
 * basic       : the usual hello world (mainly the Alexander Overvoorde tutorial)
 * model       : model loading (basic vulkan usage)
-* asModel     : model loading with Assimp (multiple descriptor sets, pipeline (on disk) caches)
+* asModel     : model loading with Assimp (multiple descriptor sets, pipeline (on disk) caches, multisampling)
 
 ### Data
 * [kila](https://cgi.tutsplus.com/articles/game-character-creation-series-kila-chapter-1-high-resolution-modeling--cg-24776) - By Antony Ward
