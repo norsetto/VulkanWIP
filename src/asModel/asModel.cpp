@@ -304,6 +304,7 @@ int main(int argc, char ** argv)
     vkTest->updateDescriptorSets(model);
     
     //Set the graphics pipeline
+    vkTest->createPipelineCache();
     vkTest->createGraphicsPipeline(shaderStages);
 
     //Setup framebuffer
@@ -576,7 +577,7 @@ void VkTest::createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo>
       vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
     }
 
-    if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(m_device, m_pipelineCache, 1, &pipelineInfo, nullptr, &m_graphicsPipeline) != VK_SUCCESS) {
       throw std::runtime_error("failed to create graphics pipeline!");
     }
 }

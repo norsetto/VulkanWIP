@@ -62,7 +62,8 @@ public:
   void selectComputeQueue(void);
   void setLogicalDevice(VkPhysicalDeviceFeatures deviceFeatures = {});
   VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
-
+  void createPipelineCache(void);
+  void createPipelineCache(VkPipelineCache &pipelineCache);
 
   //Image presentation methods
   void createSurface(VkSurfaceKHR surface);
@@ -86,9 +87,7 @@ public:
   void createAllocateAndBindBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer, VkDeviceMemory &bufferMemory);
   void createSampler(VkFilter mag_filter, VkFilter min_filter, VkSamplerMipmapMode mipmap_mode, VkSamplerAddressMode u_address_mode, VkSamplerAddressMode v_address_mode, VkSamplerAddressMode w_address_mode, float lod_bias, bool anisotropy_enable, float max_anisotropy, bool compare_enable, VkCompareOp compare_operator, float min_lod, float max_lod, VkBorderColor border_color, bool unnormalized_coords, VkSampler & sampler);
   void createSampledImage(VkImageType type, VkFormat format, VkExtent3D size, uint32_t num_mipmaps, uint32_t num_layers, VkImageUsageFlags usage, bool cubemap, VkImageViewType view_type, VkImageAspectFlags aspect, bool linear_filtering, VkImage & sampled_image, VkDeviceMemory & memory_object, VkImageView & sampled_image_view);
-
   void createCombinedImageSampler(VkImageType type, VkFormat format, VkExtent3D size, uint32_t num_mipmaps, uint32_t num_layers, VkImageUsageFlags usage, bool cubemap, VkImageViewType view_type, VkImageAspectFlags aspect, VkFilter mag_filter, VkFilter min_filter, VkSamplerMipmapMode mipmap_mode, VkSamplerAddressMode u_address_mode, VkSamplerAddressMode v_address_mode, VkSamplerAddressMode w_address_mode, float lod_bias, bool anisotropy_enable, float max_anisotropy, bool compare_enable, VkCompareOp compare_operator, float min_lod, float max_lod, VkBorderColor border_color, bool unnormalized_coords, VkSampler & sampler, VkImage & sampled_image, VkDeviceMemory & memory_object, VkImageView & sampled_image_view);
-
   void createImage(VkImageType type, VkFormat format, VkExtent3D size, uint32_t num_mipmaps, uint32_t num_layers, VkSampleCountFlagBits samples, VkImageUsageFlags usage_scenarios, bool cubemap, VkImage & image);
   void allocateAndBindMemoryObjectToImage(VkImage image, VkMemoryPropertyFlagBits memory_properties, VkDeviceMemory & memory_object);
   void createImageView(VkImage image, VkImageViewType view_type, VkFormat format, VkImageAspectFlags aspect, VkImageView & image_view);
@@ -116,7 +115,6 @@ public:
   //Command buffer methods
   void createCommandPool(void);
   void createCommandPool(VkCommandPool & command_pool, VkCommandPoolCreateFlags flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-
   void allocateCommandBuffers(void);
   void allocateCommandBuffers(std::vector<VkCommandBuffer> & commandBuffers);
   void allocateCommandBuffers(VkCommandPool command_pool, uint32_t count, std::vector<VkCommandBuffer> & command_buffers, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
@@ -171,12 +169,13 @@ protected:
   VkExtent2D m_swapChainExtent = {};
   VkSwapchainKHR m_swapChain = VK_NULL_HANDLE;
   VkPipeline m_graphicsPipeline = VK_NULL_HANDLE;
+  VkPipelineCache m_pipelineCache = VK_NULL_HANDLE;
   VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
   VkRenderPass m_renderPass = VK_NULL_HANDLE;
   VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
   VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
   VkCommandPool m_commandPool = VK_NULL_HANDLE;
-
+  
   VkPhysicalDeviceMemoryProperties m_memProperties;
   VkColorSpaceKHR m_imageColorSpace;
   VkQueue m_graphicsQueue;
@@ -208,39 +207,43 @@ VkBase::~VkBase()
   if (m_instance != VK_NULL_HANDLE) {
     if (m_device != VK_NULL_HANDLE) {
       if (m_commandPool != VK_NULL_HANDLE) {
-	vkDestroyCommandPool(m_device, m_commandPool, nullptr);
-	m_commandPool = VK_NULL_HANDLE;
+        vkDestroyCommandPool(m_device, m_commandPool, nullptr);
+        m_commandPool = VK_NULL_HANDLE;
       }
       if (m_descriptorPool != VK_NULL_HANDLE) {
-	vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
-	m_descriptorPool = VK_NULL_HANDLE;
+        vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+        m_descriptorPool = VK_NULL_HANDLE;
       }
       if (m_descriptorSetLayout != VK_NULL_HANDLE) {
-	vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
-	m_descriptorSetLayout = VK_NULL_HANDLE;
+        vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
+        m_descriptorSetLayout = VK_NULL_HANDLE;
       }
       vkDestroyPipeline(m_device, m_graphicsPipeline, nullptr);
       if (m_renderPass != VK_NULL_HANDLE) {
-	vkDestroyRenderPass(m_device, m_renderPass, nullptr);
-	m_renderPass = VK_NULL_HANDLE;
+        vkDestroyRenderPass(m_device, m_renderPass, nullptr);
+        m_renderPass = VK_NULL_HANDLE;
       }
       if (m_pipelineLayout != VK_NULL_HANDLE) {
-	vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
-	m_pipelineLayout = VK_NULL_HANDLE;
+        vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+        m_pipelineLayout = VK_NULL_HANDLE;
       }
       for (const auto& imageView : m_swapChainImageView) {
-	vkDestroyImageView(m_device, imageView, nullptr);
+        vkDestroyImageView(m_device, imageView, nullptr);
       }
       for (const auto& frameBuffer : m_swapChainFramebuffers) {
-	vkDestroyFramebuffer(m_device, frameBuffer, nullptr);
+        vkDestroyFramebuffer(m_device, frameBuffer, nullptr);
       }
       if (m_swapChain != VK_NULL_HANDLE) {
-	vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
-	m_swapChain = VK_NULL_HANDLE;
+        vkDestroySwapchainKHR(m_device, m_swapChain, nullptr);
+        m_swapChain = VK_NULL_HANDLE;
       }
       if (m_surface != VK_NULL_HANDLE) {
-	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-	m_surface = VK_NULL_HANDLE;
+        vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+        m_surface = VK_NULL_HANDLE;
+      }
+      if (m_pipelineCache != VK_NULL_HANDLE) {
+        vkDestroyPipelineCache(m_device, m_pipelineCache, nullptr);
+        m_pipelineCache = VK_NULL_HANDLE;
       }
       vkDestroyDevice(m_device, nullptr);
       m_device = VK_NULL_HANDLE;
@@ -640,6 +643,24 @@ VkFormat VkBase::findSupportedFormat(const std::vector<VkFormat>& candidates, Vk
     }
   }
   throw std::runtime_error("failed to find supported format!");
+}
+
+void VkBase::createPipelineCache()
+{
+    VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    
+    if (vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &m_pipelineCache) != VK_SUCCESS)
+        throw std::runtime_error("failed to create pipeline cache!");
+}
+
+void VkBase::createPipelineCache(VkPipelineCache &pipelineCache)
+{
+    VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    
+    if (vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS)
+        throw std::runtime_error("failed to create pipeline cache!");
 }
 
 void VkBase::createSurface(VkSurfaceKHR surface)
