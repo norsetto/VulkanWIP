@@ -2,6 +2,7 @@
 
 #include "vkTools.hpp"
 #include "GlslangToSpv.h"
+#include "config.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -11,6 +12,7 @@
 #include <algorithm>
 #include <string>
 #include <cstring>
+#include <cstdio>
 
 class VkBase
 {
@@ -62,9 +64,10 @@ public:
   void selectComputeQueue(void);
   void setLogicalDevice(VkPhysicalDeviceFeatures deviceFeatures = {});
   VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
-  void createPipelineCache(void);
-  void createPipelineCache(VkPipelineCache &pipelineCache);
-
+  void createPipelineCache(VkPipelineCache *pipelineCache = nullptr);
+  void savePipelineCacheToDisk(const std::string &cacheFilename, VkPipelineCache pipelineCache = VK_NULL_HANDLE);
+  void loadPipelineCacheFromDisk(const std::string &cacheFilename, bool validateCache = false, VkPipelineCache pipelineCache = VK_NULL_HANDLE);
+  
   //Image presentation methods
   void createSurface(VkSurfaceKHR surface);
   void createSwapchain(VkExtent2D swapChainExtent, VideoBuffer videoBuffer, VkPresentModeKHR mode = VK_PRESENT_MODE_FIFO_KHR);
@@ -175,8 +178,8 @@ protected:
   VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
   VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
   VkCommandPool m_commandPool = VK_NULL_HANDLE;
-  
   VkPhysicalDeviceMemoryProperties m_memProperties;
+  VkPhysicalDeviceProperties m_devProperties;
   VkColorSpaceKHR m_imageColorSpace;
   VkQueue m_graphicsQueue;
   VkQueue m_computeQueue;
@@ -475,8 +478,9 @@ void VkBase::selectPhysicalDevice(int selectedDevice)
   m_physical_device = devices[selectedDevice];
   std::cout << "Selected device " << selectedDevice << std::endl;
 
-  //We cache this for later use in createBuffer
+  //We cache this for later use
   vkGetPhysicalDeviceMemoryProperties(m_physical_device, &m_memProperties);
+  vkGetPhysicalDeviceProperties(m_physical_device, &m_devProperties);
 }
 
 void VkBase::checkDeviceExtensions(const std::vector<const char *> &extensions)
@@ -645,22 +649,157 @@ VkFormat VkBase::findSupportedFormat(const std::vector<VkFormat>& candidates, Vk
   throw std::runtime_error("failed to find supported format!");
 }
 
-void VkBase::createPipelineCache()
+void VkBase::createPipelineCache(VkPipelineCache *pipelineCache)
 {
     VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
 	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
     
-    if (vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &m_pipelineCache) != VK_SUCCESS)
+    if (pipelineCache == nullptr)
+        pipelineCache = &m_pipelineCache;
+    if (vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, pipelineCache) != VK_SUCCESS)
         throw std::runtime_error("failed to create pipeline cache!");
 }
 
-void VkBase::createPipelineCache(VkPipelineCache &pipelineCache)
+//LunarG SDK VulkanSamples/API-Samples/pipeline_cache/pipeline_cache.cpp
+void VkBase::savePipelineCacheToDisk(const std::string &cacheFilename, VkPipelineCache pipelineCache)
 {
-    VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    size_t cacheSize = 0;
+    void *cacheData = nullptr;
+
+    if (pipelineCache == VK_NULL_HANDLE)
+        pipelineCache = m_pipelineCache;
+    if (pipelineCache == VK_NULL_HANDLE)
+        throw std::runtime_error("invalid pipeline cache handle!");
+        
+    //Get cache size
+    if (vkGetPipelineCacheData(m_device, pipelineCache, &cacheSize, nullptr) != VK_SUCCESS)
+        throw std::runtime_error("couldn't get pipeline cache data!");
+
+    //Allocate memory to hold the populated cache data
+    cacheData = (char *)malloc(sizeof(char) * cacheSize);
+    if (!cacheData)
+        throw std::runtime_error("couldn't allocate pipeline cache memory!");
+
+    //Populate buffer with cached data
+    if(vkGetPipelineCacheData(m_device, pipelineCache, &cacheSize, cacheData) != VK_SUCCESS)
+        throw std::runtime_error("couldn't retrieve pipeline cache data!");
+
+    //Write the file to disk, eventually overwriting
+    FILE *cacheFile = fopen(cacheFilename.c_str(), "wb");
+    if (!cacheFile)
+        throw std::runtime_error("couldn't open pipeline cache file!");
     
-    if (vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS)
-        throw std::runtime_error("failed to create pipeline cache!");
+    fwrite(cacheData, sizeof(char), cacheSize, cacheFile);
+    fclose(cacheFile);
+    humanSize(cacheSize);
+    std::cout << " of pipeline cache data written to disk (" <<cacheFilename.c_str() << ")." << std::endl;
+}
+
+//LunarG SDK VulkanSamples/API-Samples/pipeline_cache/pipeline_cache.cpp
+void VkBase::loadPipelineCacheFromDisk(const std::string &cacheFilename, bool validateCache, VkPipelineCache pipelineCache)
+{
+    size_t cacheSize = 0;
+    void *cacheData = nullptr;
+
+    FILE *cacheFile = fopen(cacheFilename.c_str(), "rb");
+
+    if (cacheFile) {
+        //Determine cache size
+        fseek(cacheFile, 0, SEEK_END);
+        cacheSize = ftell(cacheFile);
+        rewind(cacheFile);
+
+        //Allocate memory to hold the initial cache data
+        cacheData = (char *)malloc(sizeof(char) * cacheSize);
+        if (cacheData == nullptr) {
+            throw std::runtime_error("couldn't allocate memory for pipeline cache!");
+        }
+
+        //Read the data into our buffer
+        if (fread(cacheData, 1, cacheSize, cacheFile) != cacheSize) {
+            free(cacheData);
+            throw std::runtime_error("couldn't read correct pipeline cache data!");
+        }
+
+        //Clean up and print results
+        fclose(cacheFile);
+        humanSize(cacheSize);
+        std::cout << " of pipeline cache data loaded from " << cacheFilename.c_str() << std::endl;
+    } else {
+        std::cout << "Pipeline cache file " << cacheFilename.c_str() << " couldn't be read!" << std::endl;
+    }
+
+    if (validateCache && cacheData != nullptr) {
+        uint32_t headerLength = 0;
+        uint32_t cacheHeaderVersion = 0;
+        uint32_t vendorID = 0;
+        uint32_t deviceID = 0;
+        uint8_t pipelineCacheUUID[VK_UUID_SIZE] = {};
+
+        memcpy(&headerLength, (uint8_t *)cacheData + 0, 4);
+        memcpy(&cacheHeaderVersion, (uint8_t *)cacheData + 4, 4);
+        memcpy(&vendorID, (uint8_t *)cacheData + 8, 4);
+        memcpy(&deviceID, (uint8_t *)cacheData + 12, 4);
+        memcpy(pipelineCacheUUID, (uint8_t *)cacheData + 16, VK_UUID_SIZE);
+
+        // Check each field and report bad values before freeing existing cache
+        bool badCache = false;
+
+        if (headerLength != 32) {
+            badCache = true;
+            std::cout << "Bad header length in " << cacheFilename.c_str() << std::endl;
+        }
+
+        if (cacheHeaderVersion != VK_PIPELINE_CACHE_HEADER_VERSION_ONE) {
+            badCache = true;
+            std::cout << "Unsupported cache header version in " << cacheFilename.c_str() << std::endl;
+        }
+
+        if (vendorID != m_devProperties.vendorID) {
+            badCache = true;
+            std::cout << "Vendor ID mismatch in " << cacheFilename.c_str() << std::endl;
+        }
+
+        if (deviceID != m_devProperties.deviceID) {
+            badCache = true;
+            std::cout << "Device ID mismatch in " << cacheFilename.c_str() << std::endl;
+        }
+
+        if (memcmp(pipelineCacheUUID, m_devProperties.pipelineCacheUUID, sizeof(pipelineCacheUUID)) != 0) {
+            badCache = true;
+            std::cout << "UUID mismatch in " << cacheFilename.c_str() << std::endl;
+        }
+
+        if (badCache) {
+            // Don't submit initial cache data if any version info is incorrect
+            free(cacheData);
+            cacheSize = 0;
+            cacheData = nullptr;
+
+            // And clear out the old cache file for use in next run
+            std::cout << "Deleting cache file " << cacheFilename.c_str() << " to repopulate" << std::endl;
+            if (remove(cacheFilename.c_str()) != 0)
+                throw std::runtime_error("couldn't remove cache file!");
+        }
+    }
+
+    //Feed the initial cache data (if any) during cache creation
+    VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+    pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+    pipelineCacheCreateInfo.initialDataSize = cacheSize;
+    pipelineCacheCreateInfo.pInitialData = cacheData;
+    if (pipelineCache == VK_NULL_HANDLE) {
+        if (vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &m_pipelineCache) != VK_SUCCESS)
+            throw std::runtime_error("couldn't create pipeline cache!");
+    } else {
+        if (vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS)
+            throw std::runtime_error("couldn't create pipeline cache!");
+    }
+    
+    //clean up
+    if (cacheData)
+        free(cacheData);
+    cacheData = nullptr;
 }
 
 void VkBase::createSurface(VkSurfaceKHR surface)
@@ -1002,12 +1141,9 @@ void VkBase::loadTexture(Texture &texture, std::string filename)
     int image_width, image_height, image_num_components, image_data_size;
     
     VkTools::loadTextureDataFromFile(filename.c_str(), 4, image_data, &image_width, &image_height, &image_num_components, &image_data_size);
-    std::cout << "loaded " << image_width << "X" << image_height << " (";
-    if (image_data_size >= 1048576)
-        std::cout << image_data_size / 1048576 << "MB) from ";
-    else
-        std::cout << image_data_size / 1024 << "KB) from ";
-    std::cout << filename << std::endl;
+    std::cout << "loaded " << image_width << "X" << image_height << " ";
+    humanSize(image_data_size);
+    std::cout << " from " << filename << std::endl;
 
     //Create texture 
     VkSampler _sampler;

@@ -78,6 +78,7 @@ const VkBase::VideoBuffer videoBuffer = VkBase::TRIPLE_BUFFER;
 int width = 800;
 int height = 600;
 std::string WINDOW_TITLE = "Vulkan Test";
+const std::string pipelineCacheFilename = "asModel_pipeline_cache.bin";
 const VkPresentModeKHR mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 std::vector<VkPipelineShaderStageCreateInfo> shaderStages = {};
 float frameTime;
@@ -304,7 +305,7 @@ int main(int argc, char ** argv)
     vkTest->updateDescriptorSets(model);
     
     //Set the graphics pipeline
-    vkTest->createPipelineCache();
+    vkTest->loadPipelineCacheFromDisk(pipelineCacheFilename, true);
     vkTest->createGraphicsPipeline(shaderStages);
 
     //Setup framebuffer
@@ -407,6 +408,7 @@ int main(int argc, char ** argv)
     }
 
     //Cleanup
+    vkTest->savePipelineCacheToDisk(pipelineCacheFilename);
     vkDeviceWaitIdle(device);
     
     for (auto shaderStage: shaderStages) {

@@ -7,3 +7,12 @@
 #define _unused(x) ((void)(x))
 #define vk_min(x,y) (x<y?x:y)
 #define vk_max(x,y) (y>x?y:x)
+#define humanSize(x) \
+    if (x >= 1024*1024*1024) \
+        std::cout << x / (1024*1024*1024) << "GB"; \
+    else if (x >= 1024*1024) \
+        std::cout << x / (1024*1024) << "MB"; \
+    else if (x >= 1024) \
+        std::cout << x / 1024 << "KB"; \
+    else \
+        std::cout << x << "B";
