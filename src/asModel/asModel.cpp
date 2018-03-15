@@ -35,7 +35,7 @@ public:
     void updateDescriptorSets(Model *model);
     void recordCommandBuffers(Model *model);
     VkSampleCountFlagBits getMaxSampleCount(void);
-
+    float getMaxAnisotropy(void) { return m_devProperties.limits.maxSamplerAnisotropy; };
     //Setters
     void setDepthFormat(VkFormat depthFormat) { this->depthFormat = depthFormat; };
     
@@ -226,6 +226,7 @@ int main(int argc, char ** argv)
     //Set Logical device
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.sampleRateShading = VK_TRUE;
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
     vkTest->setLogicalDevice(deviceFeatures);
 
     //Create the command pool
@@ -252,7 +253,7 @@ int main(int argc, char ** argv)
 
     //Load assets
     model = new Model(vkTest);
-    model->load(MODELS_LOCATION "kila.dae", true, true);
+    model->load(MODELS_LOCATION "kila.dae", true, true, true, vkTest->getMaxAnisotropy());
 
     //Create swapchain
     vkTest->createSwapchain({static_cast<uint32_t>(width), static_cast<uint32_t>(height)}, videoBuffer, mode);

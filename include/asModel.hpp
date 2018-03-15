@@ -76,7 +76,7 @@ public:
             }
     };
     
-    void load(const std::string &filename, bool compute_bounding_box = true, bool compute_tangent_bitangent = false);
+    void load(const std::string &filename, bool compute_bounding_box = true, bool compute_tangent_bitangent = false,  bool anisotropy_enable = false, float max_anisotropy = 1.0f);
 
     //Getters
     uint32_t getNumMeshes(void) { return num_meshes; };
@@ -143,7 +143,7 @@ private:
 
 };
 
-void Model::load(const std::string &filename, bool compute_bounding_box, bool compute_tangent_bitangent) {
+void Model::load(const std::string &filename, bool compute_bounding_box, bool compute_tangent_bitangent, bool anisotropy_enable, float max_anisotropy) {
     Assimp::Importer importer;
     unsigned int aiFlags = aiProcess_GenSmoothNormals |
     aiProcess_JoinIdenticalVertices    |
@@ -169,11 +169,11 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
 
     //Load textures
     for (std::map<std::string, VkBase::Texture>::iterator it = textureDiffuseMaps.begin(); it != textureDiffuseMaps.end(); it++)
-        vkBase->loadTexture(it->second, it->first);
+        vkBase->loadTexture(it->second, it->first, anisotropy_enable, max_anisotropy);
     for (std::map<std::string, VkBase::Texture>::iterator it = textureNormalMaps.begin(); it != textureNormalMaps.end(); it++)
-        vkBase->loadTexture(it->second, it->first);
+        vkBase->loadTexture(it->second, it->first, anisotropy_enable, max_anisotropy);
     for (std::map<std::string, VkBase::Texture>::iterator it = textureSpecularMaps.begin(); it != textureSpecularMaps.end(); it++)
-        vkBase->loadTexture(it->second, it->first);
+        vkBase->loadTexture(it->second, it->first, anisotropy_enable, max_anisotropy);
       
     if (compute_bounding_box) {
         bb = new BOUNDING_BOX;

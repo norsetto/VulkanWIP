@@ -95,7 +95,7 @@ public:
   void allocateAndBindMemoryObjectToImage(VkImage image, VkMemoryPropertyFlagBits memory_properties, VkDeviceMemory & memory_object);
   void createImageView(VkImage image, VkImageViewType view_type, VkFormat format, VkImageAspectFlags aspect, VkImageView & image_view);
   void create2DImageAndView(VkFormat format, VkExtent2D size, uint32_t num_mipmaps, uint32_t num_layers, VkSampleCountFlagBits samples, VkImageUsageFlags usage, VkImageAspectFlags aspect, VkImage & image, VkDeviceMemory & memory_object, VkImageView & image_view);
-  void loadTexture(Texture& texture, std::string filename);
+  void loadTexture(Texture& texture, std::string filename, bool anisotropy_enable = false, float max_anisotropy = 1.0f);
   void copyDataToBuffer(const VkDeviceMemory memory, void * data, const size_t data_size);
   void copyBufferToBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
   void copyBufferToBuffer(VkCommandPool command_pool, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -1134,7 +1134,7 @@ void VkBase::create2DImageAndView(VkFormat format, VkExtent2D size, uint32_t num
   createImageView(image, VK_IMAGE_VIEW_TYPE_2D, format, aspect, image_view);
 }
 
-void VkBase::loadTexture(Texture &texture, std::string filename)
+void VkBase::loadTexture(Texture &texture, std::string filename, bool anisotropy_enable, float max_anisotropy)
 {
     //Load texture data
     std::vector<unsigned char> image_data;
@@ -1151,7 +1151,7 @@ void VkBase::loadTexture(Texture &texture, std::string filename)
     VkDeviceMemory _imageMemory;
     VkImageView _imageView;
     
-    createCombinedImageSampler(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, { (uint32_t)image_width, (uint32_t)image_height, 1 }, 1, 1, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, false, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 0.0f, false, 1.0f, false, VK_COMPARE_OP_ALWAYS, 0.0f, 1.0f, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, false, _sampler, _image, _imageMemory, _imageView);
+    createCombinedImageSampler(VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, { (uint32_t)image_width, (uint32_t)image_height, 1 }, 1, 1, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, false, VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 0.0f, anisotropy_enable, max_anisotropy, false, VK_COMPARE_OP_ALWAYS, 0.0f, 1.0f, VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK, false, _sampler, _image, _imageMemory, _imageView);
     
     //Create texture data staging buffers
     VkBuffer stagingBufferImage;
