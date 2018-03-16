@@ -37,6 +37,26 @@ public:
         image = VK_NULL_HANDLE;
         imageMemory = VK_NULL_HANDLE;
     };
+
+    void destroy(VkDevice device) {
+        if (view != VK_NULL_HANDLE) {
+            vkDestroyImageView(device, view, nullptr);
+            view = VK_NULL_HANDLE;
+        }
+        if (sampler != VK_NULL_HANDLE) {
+            vkDestroySampler(device, sampler, nullptr);
+            sampler = VK_NULL_HANDLE;
+        }
+        if (image != VK_NULL_HANDLE) {
+            vkDestroyImage(device, image, nullptr);
+            image = VK_NULL_HANDLE;
+        }
+        if (imageMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, imageMemory, nullptr);
+            imageMemory = VK_NULL_HANDLE;
+        }
+        binding = 0;
+    }
   };
 
   struct Buffer {

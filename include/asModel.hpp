@@ -41,22 +41,7 @@ public:
         for (auto textures :  {textureDiffuseMaps, textureNormalMaps, textureSpecularMaps})
             for (auto texture : textures)
             {
-                if (texture.second.sampler !=  VK_NULL_HANDLE) {
-                    vkDestroySampler(device, texture.second.sampler, nullptr);
-                    texture.second.sampler = VK_NULL_HANDLE;
-                }
-                if (texture.second.view !=  VK_NULL_HANDLE) {
-                    vkDestroyImageView(device, texture.second.view, nullptr);
-                    texture.second.view = VK_NULL_HANDLE;
-                }
-                if (texture.second.image !=  VK_NULL_HANDLE) {
-                    vkDestroyImage(device, texture.second.image, nullptr);
-                    texture.second.image = VK_NULL_HANDLE;
-                }
-                if (texture.second.imageMemory !=  VK_NULL_HANDLE) {
-                    vkFreeMemory(device, texture.second.imageMemory, nullptr);
-                    texture.second.imageMemory = VK_NULL_HANDLE;
-                }
+                texture.second.destroy(vkBase->device());
             }
         for (auto buffers : { vertexBuffer, indexBuffer, materialBuffer, stagingMaterialBuffer } )
             for (auto buffer :  buffers)
