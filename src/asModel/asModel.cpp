@@ -218,7 +218,7 @@ int main(int argc, char ** argv)
 
     //Load assets
     model = new Model(vkTest);
-    model->load(MODELS_LOCATION "kila.dae", true, true, true, vkTest->getMaxAnisotropy());
+    model->load(MODELS_LOCATION "kila.dae", true, true, true, vkTest->getMaxAnisotropy(), true);
 
     //Create swapchain
     vkTest->createSwapchain({static_cast<uint32_t>(width), static_cast<uint32_t>(height)}, videoBuffer, mode);

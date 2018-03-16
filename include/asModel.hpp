@@ -26,14 +26,47 @@ class Model {
 public:
 
     //For the time being, we only do this
-	struct Vertex {
-		glm::vec3 position;
-		glm::vec3 normal;
-		glm::vec2 uv;
-		glm::vec3 tangent;
-		glm::vec3 bitangent;
+    struct Vertex {
+        glm::vec3 position;
+        glm::vec3 normal;
+        glm::vec2 uv;
+        glm::vec3 tangent;
+        glm::vec3 bitangent;
     };
     
+    #define MAX_BONES_PER_VERTEX 4
+
+    struct VertexBoneData {
+        std::array<uint32_t, MAX_BONES_PER_VERTEX> IDs;
+        std::array<float, MAX_BONES_PER_VERTEX> weights{};
+
+        // Ad bone weighting to vertex info
+        void add(uint32_t boneID, float weight)
+        {
+            for (uint32_t i = 0; i < MAX_BONES_PER_VERTEX; i++)
+            {
+                if (weights[i] == 0.0f)
+                {
+                    IDs[i] = boneID;
+                    weights[i] = weight;
+                    return;
+                }
+            }
+        }
+    };
+
+    // Stores information on a single bone
+    struct BoneInfo {
+        aiMatrix4x4 offset;
+        aiMatrix4x4 finalTransformation;
+
+        BoneInfo()
+        {
+            offset = aiMatrix4x4();
+            finalTransformation = aiMatrix4x4();
+        };
+    };
+
     Model(VkBase *vkBase) : vkBase(vkBase) {};
     ~Model(void)
     {
@@ -61,7 +94,7 @@ public:
             }
     };
     
-    void load(const std::string &filename, bool compute_bounding_box = true, bool compute_tangent_bitangent = false,  bool anisotropy_enable = false, float max_anisotropy = 1.0f);
+    void load(const std::string &filename, bool compute_bounding_box, bool compute_tangent_bitangent, bool anisotropy_enable, float max_anisotropy, bool load_bones = false);
 
     //Getters
     uint32_t getNumMeshes(void) { return num_meshes; };
@@ -79,6 +112,7 @@ public:
 private:
 
     void findUniqueTextures(const aiScene *scene);
+    void loadBones(const aiScene *scene);
     
     //Base Class
     VkBase *vkBase;
@@ -126,9 +160,17 @@ private:
         float scale;
       }* bb = nullptr;
 
+    // Per-vertex bone info
+    std::vector<Model::VertexBoneData> bones;
+
+    // Root inverese transform matrix
+    aiMatrix4x4 globalInverseTransform;
+
+    // Bone transformations
+    std::vector<aiMatrix4x4> boneTransforms;
 };
 
-void Model::load(const std::string &filename, bool compute_bounding_box, bool compute_tangent_bitangent, bool anisotropy_enable, float max_anisotropy) {
+void Model::load(const std::string &filename, bool compute_bounding_box, bool compute_tangent_bitangent, bool anisotropy_enable, float max_anisotropy, bool load_bones) {
     Assimp::Importer importer;
     unsigned int aiFlags = aiProcess_GenSmoothNormals |
     aiProcess_JoinIdenticalVertices    |
@@ -151,6 +193,27 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
 
     //Find unique textures
     findUniqueTextures(scene);
+
+    //Load bones
+    bool has_bones = false;
+    for (uint32_t m = 0; m < scene->mNumMeshes && has_bones ==  false; m++) {
+        if (scene->mMeshes[m]->HasBones())
+            has_bones = true;
+    };
+    if (load_bones && has_bones) {
+        // Store global inverse transform matrix of root node
+		globalInverseTransform = scene->mRootNode->mTransformation;
+        globalInverseTransform.Inverse();
+
+        // Setup bones
+        // One vertex bone info structure per vertex
+        uint32_t vertexCount(0);
+        for (uint32_t m = 0; m < scene->mNumMeshes; m++) {
+            vertexCount += scene->mMeshes[m]->mNumVertices;
+        };
+        bones.resize(vertexCount);
+        loadBones(scene);
+    }
 
     //Load textures
     for (std::map<std::string, VkBase::Texture>::iterator it = textureDiffuseMaps.begin(); it != textureDiffuseMaps.end(); it++)
@@ -194,6 +257,7 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
     for (uint32_t i = 0; i < num_meshes; i++) {
 
         const aiMesh* mesh = scene->mMeshes[i];
+        std::cout <<  "Loading " <<  mesh->mName.C_Str() << " for " << mesh->mNumVertices <<  " vertices." << std::endl;
 
         //Set indices buffer
         for (uint32_t j = 0; j < mesh->mNumFaces; j++) {
@@ -307,14 +371,17 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
         {
             materials[i].auxilary[1] = 1.0f;
             diffuse[i] = textureDiffuseMaps[texPath.data];
+            std::cout << "With diffuse texture " << texPath.C_Str() << std::endl;
             if(AI_SUCCESS == mtl->GetTexture(aiTextureType_NORMALS, 0, &texPath))
             {
                 materials[i].auxilary[1] = 2.0f;
                 normals[i] = textureNormalMaps[texPath.data];
+                std::cout << "With normal texture " << texPath.C_Str() << std::endl;
                 if(AI_SUCCESS == mtl->GetTexture(aiTextureType_SPECULAR, 0, &texPath))
                 {
                     materials[i].auxilary[1] = 3.0f;
                     speculars[i] = textureSpecularMaps[texPath.data];
+                    std::cout << "With specular texture " << texPath.C_Str() << std::endl;
                 }
             } else
             {
@@ -323,6 +390,7 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
                 {
                     materials[i].auxilary[1] = 4.0f;
                     speculars[i] = textureSpecularMaps[texPath.data];
+                    std::cout << "With specular texture " << texPath.C_Str() << std::endl;
                 }
             }
         }
@@ -365,12 +433,65 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
         materialBuffers[i] = {materialBuffer[i], sizeof(MATERIALS_BLOCK), 0};
       }
 
+    std::cout <<  "Loaded " <<  num_meshes <<  " meshes." <<  std::endl;
+
     if (compute_bounding_box) {
         float tmp = bb->max.x - bb->min.x;
         tmp = bb->max.y - bb->min.y > tmp?bb->max.y - bb->min.y:tmp;
         tmp = bb->max.z - bb->min.z > tmp?bb->max.z - bb->min.z:tmp;
         bb->scale = 1.f / tmp;
       }
+}
+
+//https://github.com/SaschaWillems/Vulkan/blob/master/examples/skeletalanimation/skeletalanimation.cpp
+//Load bone information from ASSIMP mesh
+void Model::loadBones(const aiScene *scene)
+{
+    // Maps bone name with index
+    std::map<std::string, uint32_t> boneMapping;
+
+    // Bone details
+    std::vector<BoneInfo> boneInfo;
+
+    // Number of bones present
+	uint32_t numBones = 0;
+
+    uint32_t vertexOffset(0);
+
+    for (uint32_t m = 0; m < scene->mNumMeshes; m++) {
+        aiMesh *pMesh = scene->mMeshes[m];
+        for (uint32_t i = 0; i < pMesh->mNumBones; i++)
+        {
+            uint32_t index = 0;
+
+            std::string name(pMesh->mBones[i]->mName.data);
+
+            if (boneMapping.find(name) == boneMapping.end())
+            {
+                // Bone not present, add new one
+                index = numBones;
+                numBones++;
+                BoneInfo bone;
+                boneInfo.push_back(bone);
+                boneInfo[index].offset = pMesh->mBones[i]->mOffsetMatrix;
+                boneMapping[name] = index;
+            }
+            else
+            {
+                index = boneMapping[name];
+            }
+
+            for (uint32_t j = 0; j < pMesh->mBones[i]->mNumWeights; j++)
+            {
+                uint32_t vertexID = vertexOffset + pMesh->mBones[i]->mWeights[j].mVertexId;
+                bones.at(vertexID).add(index, pMesh->mBones[i]->mWeights[j].mWeight);
+            }
+        }
+        vertexOffset += scene->mMeshes[m]->mNumVertices;
+    }
+    std::cout <<  "Loaded " <<  numBones <<  " bones." <<  std::endl;
+    bones.resize(numBones);
+    boneTransforms.resize(numBones);
 }
 
 void Model::findUniqueTextures(const aiScene *scene)
