@@ -41,42 +41,9 @@ public:
     
     ~VkTest(void)
     {
-        if (depthImage != VK_NULL_HANDLE) {
-            vkDestroyImage(m_device, depthImage, nullptr);
-            depthImage = VK_NULL_HANDLE;
-        }
-        if (depthImageView != VK_NULL_HANDLE) {
-            vkDestroyImageView(m_device, depthImageView, nullptr);
-            depthImageView = VK_NULL_HANDLE;
-        }
-        if (depthImageMemoryObject != VK_NULL_HANDLE) {
-            vkFreeMemory(m_device, depthImageMemoryObject, nullptr);
-            depthImageMemoryObject = VK_NULL_HANDLE;
-        }
-        if (depthImageViewMSAA != VK_NULL_HANDLE) {
-            vkDestroyImageView(m_device, depthImageViewMSAA, nullptr);
-            depthImageViewMSAA = VK_NULL_HANDLE;
-        }
-        if (depthImageMemoryObjectMSAA != VK_NULL_HANDLE) {
-            vkFreeMemory(m_device, depthImageMemoryObjectMSAA, nullptr);
-            depthImageMemoryObjectMSAA = VK_NULL_HANDLE;
-        }
-        if (depthImageMSAA != VK_NULL_HANDLE) {
-            vkDestroyImage(m_device, depthImageMSAA, nullptr);
-            depthImageMSAA = VK_NULL_HANDLE;
-        }
-        if (imageViewMSAA != VK_NULL_HANDLE) {
-            vkDestroyImageView(m_device, imageViewMSAA, nullptr);
-            imageViewMSAA = VK_NULL_HANDLE;
-        }
-        if (imageMemoryObjectMSAA != VK_NULL_HANDLE) {
-            vkFreeMemory(m_device, imageMemoryObjectMSAA, nullptr);
-            imageMemoryObjectMSAA = VK_NULL_HANDLE;
-        }
-        if (imageMSAA != VK_NULL_HANDLE) {
-            vkDestroyImage(m_device, imageMSAA, nullptr);
-            imageMSAA = VK_NULL_HANDLE;
-        }
+        depth.destroy(m_device);
+        depthMSAA.destroy(m_device);
+        colorMSAA.destroy(m_device);
         for (auto descriptorSetLayout : descriptorSetLayouts) {
             if (descriptorSetLayout != VK_NULL_HANDLE) {
                 vkDestroyDescriptorSetLayout(m_device, descriptorSetLayout, nullptr);
@@ -87,9 +54,7 @@ public:
     };
     
 private:
-    VkImage depthImage = VK_NULL_HANDLE, depthImageMSAA = VK_NULL_HANDLE, imageMSAA = VK_NULL_HANDLE;
-    VkDeviceMemory depthImageMemoryObject = VK_NULL_HANDLE, depthImageMemoryObjectMSAA = VK_NULL_HANDLE, imageMemoryObjectMSAA = VK_NULL_HANDLE;
-    VkImageView depthImageView = VK_NULL_HANDLE, depthImageViewMSAA = VK_NULL_HANDLE, imageViewMSAA = VK_NULL_HANDLE;
+    Image depth, depthMSAA, colorMSAA;
     VkFormat depthFormat;
     std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
     std::vector<VkDescriptorSet> descriptorSets;
@@ -566,53 +531,20 @@ void VkTest::createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo>
 void VkTest::createFrameBuffers(VkSampleCountFlagBits samples)
 {      
     //Create image and image view for the depth buffer
-    if (depthImageView != VK_NULL_HANDLE) {
-      vkDestroyImageView(m_device, depthImageView, nullptr);
-      depthImageView = VK_NULL_HANDLE;
-    }
-    if (depthImageMemoryObject != VK_NULL_HANDLE) {
-      vkFreeMemory(m_device, depthImageMemoryObject, nullptr);
-      depthImageMemoryObject = VK_NULL_HANDLE;
-    }
-    if (depthImage != VK_NULL_HANDLE) {
-      vkDestroyImage(m_device, depthImage, nullptr);
-      depthImage = VK_NULL_HANDLE;
-    }
-    if (depthImageViewMSAA != VK_NULL_HANDLE) {
-      vkDestroyImageView(m_device, depthImageViewMSAA, nullptr);
-      depthImageViewMSAA = VK_NULL_HANDLE;
-    }
-    if (depthImageMemoryObjectMSAA != VK_NULL_HANDLE) {
-      vkFreeMemory(m_device, depthImageMemoryObjectMSAA, nullptr);
-      depthImageMemoryObjectMSAA = VK_NULL_HANDLE;
-    }
-    if (depthImageMSAA != VK_NULL_HANDLE) {
-      vkDestroyImage(m_device, depthImageMSAA, nullptr);
-      depthImageMSAA = VK_NULL_HANDLE;
-    }
-    if (imageViewMSAA != VK_NULL_HANDLE) {
-      vkDestroyImageView(m_device, imageViewMSAA, nullptr);
-      imageViewMSAA = VK_NULL_HANDLE;
-    }
-    if (imageMemoryObjectMSAA != VK_NULL_HANDLE) {
-      vkFreeMemory(m_device, imageMemoryObjectMSAA, nullptr);
-      imageMemoryObjectMSAA = VK_NULL_HANDLE;
-    }
-    if (imageMSAA != VK_NULL_HANDLE) {
-      vkDestroyImage(m_device, imageMSAA, nullptr);
-      imageMSAA = VK_NULL_HANDLE;
-    }
+    depth.destroy(m_device);
+    depthMSAA.destroy(m_device);
+    colorMSAA.destroy(m_device);
 
-    create2DImageAndView(depthFormat, m_swapChainExtent, 1, 1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, depthImage, depthImageMemoryObject, depthImageView);
+    create2DImageAndView(depthFormat, m_swapChainExtent, 1, 1, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, depth);
 
-    create2DImageAndView(depthFormat, m_swapChainExtent, 1, 1, samples, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |  VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, depthImageMSAA, depthImageMemoryObjectMSAA, depthImageViewMSAA);
+    create2DImageAndView(depthFormat, m_swapChainExtent, 1, 1, samples, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |  VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT, depthMSAA);
 
-    create2DImageAndView(m_swapchain_image_format, m_swapChainExtent, 1, 1, samples, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT, imageMSAA, imageMemoryObjectMSAA, imageViewMSAA);
+    create2DImageAndView(m_swapchain_image_format, m_swapChainExtent, 1, 1, samples, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT, colorMSAA);
 
     //Create framebuffer
     m_swapChainFramebuffers.resize(m_swapChainImageView.size());
     for (size_t i = 0; i < m_swapChainImageView.size(); i++) {
-      createFramebuffer({ imageViewMSAA, m_swapChainImageView[i], depthImageViewMSAA, depthImageView }, m_swapChainExtent, 1, m_swapChainFramebuffers[i]);
+      createFramebuffer({ colorMSAA.view, m_swapChainImageView[i], depthMSAA.view, depth.view }, m_swapChainExtent, 1, m_swapChainFramebuffers[i]);
     }
 }
 

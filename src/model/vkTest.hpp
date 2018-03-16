@@ -30,7 +30,7 @@ struct Buffer {
   uint32_t binding;
 };
 
-struct Image {
+struct ImageTest {
   VkImageView view;
   VkSampler sampler;
   uint32_t binding;
@@ -280,7 +280,7 @@ public:
     }
   }
 
-  void createDescriptorSets(std::vector<Buffer> buffers, std::vector<Image> images)
+  void createDescriptorSets(std::vector<Buffer> buffers, std::vector<ImageTest> images)
   {
     allocateDescriptorSets();
     std::vector<VkWriteDescriptorSet> descriptorWrites = {};

@@ -24,18 +24,45 @@ public:
     TRIPLE_BUFFER = 3
   };
 
+    struct Image {
+    VkImageView view;
+    VkImage image;
+    VkDeviceMemory memory;
+
+    Image(void) {
+        view = VK_NULL_HANDLE;
+        image = VK_NULL_HANDLE;
+        memory = VK_NULL_HANDLE;
+    };
+
+    void destroy(VkDevice device) {
+        if (view != VK_NULL_HANDLE) {
+            vkDestroyImageView(device, view, nullptr);
+            view = VK_NULL_HANDLE;
+        }
+        if (image != VK_NULL_HANDLE) {
+            vkDestroyImage(device, image, nullptr);
+            image = VK_NULL_HANDLE;
+        }
+        if (memory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, memory, nullptr);
+            memory = VK_NULL_HANDLE;
+        }
+    }
+  };
+
   struct Texture {
     VkImageView view;
     VkSampler sampler;
     VkImage image;
-    VkDeviceMemory imageMemory;
+    VkDeviceMemory memory;
     uint32_t binding;
     
     Texture(uint32_t binding = 0) : binding(binding) {
         view = VK_NULL_HANDLE;
         sampler = VK_NULL_HANDLE;
         image = VK_NULL_HANDLE;
-        imageMemory = VK_NULL_HANDLE;
+        memory = VK_NULL_HANDLE;
     };
 
     void destroy(VkDevice device) {
@@ -51,9 +78,9 @@ public:
             vkDestroyImage(device, image, nullptr);
             image = VK_NULL_HANDLE;
         }
-        if (imageMemory != VK_NULL_HANDLE) {
-            vkFreeMemory(device, imageMemory, nullptr);
-            imageMemory = VK_NULL_HANDLE;
+        if (memory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, memory, nullptr);
+            memory = VK_NULL_HANDLE;
         }
         binding = 0;
     }
@@ -115,6 +142,7 @@ public:
   void allocateAndBindMemoryObjectToImage(VkImage image, VkMemoryPropertyFlagBits memory_properties, VkDeviceMemory & memory_object);
   void createImageView(VkImage image, VkImageViewType view_type, VkFormat format, VkImageAspectFlags aspect, VkImageView & image_view);
   void create2DImageAndView(VkFormat format, VkExtent2D size, uint32_t num_mipmaps, uint32_t num_layers, VkSampleCountFlagBits samples, VkImageUsageFlags usage, VkImageAspectFlags aspect, VkImage & image, VkDeviceMemory & memory_object, VkImageView & image_view);
+  void create2DImageAndView(VkFormat format, VkExtent2D size, uint32_t num_mipmaps, uint32_t num_layers, VkSampleCountFlagBits samples, VkImageUsageFlags usage, VkImageAspectFlags aspect, Image & image);
   void loadTexture(Texture& texture, std::string filename, bool anisotropy_enable = false, float max_anisotropy = 1.0f);
   void copyDataToBuffer(const VkDeviceMemory memory, void * data, const size_t data_size);
   void copyBufferToBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
@@ -1154,6 +1182,11 @@ void VkBase::create2DImageAndView(VkFormat format, VkExtent2D size, uint32_t num
   createImageView(image, VK_IMAGE_VIEW_TYPE_2D, format, aspect, image_view);
 }
 
+void VkBase::create2DImageAndView(VkFormat format, VkExtent2D size, uint32_t num_mipmaps, uint32_t num_layers, VkSampleCountFlagBits samples, VkImageUsageFlags usage, VkImageAspectFlags aspect, Image & image)
+{
+    create2DImageAndView(format, size, num_mipmaps, num_layers, samples, usage, aspect, image.image, image.memory, image.view);
+}
+
 void VkBase::loadTexture(Texture &texture, std::string filename, bool anisotropy_enable, float max_anisotropy)
 {
     //Load texture data
@@ -1192,7 +1225,7 @@ void VkBase::loadTexture(Texture &texture, std::string filename, bool anisotropy
     texture.view = _imageView;
     texture.sampler = _sampler;
     texture.image = _image;
-    texture.imageMemory = _imageMemory;
+    texture.memory = _imageMemory;
 }
 
 void VkBase::createFramebuffer(std::vector<VkImageView> const & attachments, VkExtent2D size, uint32_t layers, VkFramebuffer & frame_buffer)
