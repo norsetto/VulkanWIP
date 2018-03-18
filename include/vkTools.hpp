@@ -325,7 +325,9 @@ namespace VkTools {
 	(0 >= width) ||
 	(0 >= height) ||
 	(0 >= num_components)) {
-      throw std::runtime_error("could not read image!");
+      std::stringstream errorMessage;
+      errorMessage << "could not read image " << filename << " !";
+      throw std::runtime_error(errorMessage.str().c_str());
     }
 
     int data_size = width * height * (0 < num_requested_components ? num_requested_components : num_components);

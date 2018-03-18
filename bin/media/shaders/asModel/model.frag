@@ -1,10 +1,13 @@
 #version 420
  
+#define MAX_BONES 64
+
 layout (std140, set = 1, binding = 0) uniform Material {
     vec4 diffuse;
     vec4 ambient;
     vec4 specular;
     vec4 auxilary;
+    mat4 bones[MAX_BONES];
 };
 
 layout (set = 1, binding = 1) uniform sampler2D texUnit;
@@ -44,5 +47,5 @@ void main()
     
     specular_color = texture(spcUnit, TexCoord);
     specular_color *= pow(max(0.0, RdotV), auxilary[0]);
-    color.rgb = (specular_color + diffuse_color  + ambient).rgb / 1.5;
+    color.rgb = (specular_color * 0.25 + diffuse_color  + ambient).rgb;
 }

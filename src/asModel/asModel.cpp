@@ -218,7 +218,10 @@ int main(int argc, char ** argv)
 
     //Load assets
     model = new Model(vkTest);
-    model->load(MODELS_LOCATION "kila.dae", true, true, true, vkTest->getMaxAnisotropy(), true);
+    if (argc == 1)
+        model->load(MODELS_LOCATION "kila.dae", true, true, true, vkTest->getMaxAnisotropy(), true);
+    else
+        model->load(argv[1], true, true, true, vkTest->getMaxAnisotropy(), true);
 
     //Create swapchain
     vkTest->createSwapchain({static_cast<uint32_t>(width), static_cast<uint32_t>(height)}, videoBuffer, mode);
@@ -259,7 +262,7 @@ int main(int argc, char ** argv)
     glm::vec3 model_size = (model->max() - model->min());
 
     max_view = 2.0f * glm::length(model_size);
-    if (max_view < 100.0f) max_view = 100.0f;
+    if (max_view < 1000.0f) max_view = 1000.0f;
 
     camera = new Camera(model_centre - 1.5f * glm::vec3(0.0f, 0.0f, glm::length(model_size)));
     camera->lookAt(model_centre);
@@ -334,6 +337,8 @@ int main(int argc, char ** argv)
         vkTest->copyDataToBuffer(stagingUniformBufferMemory, &ubo, sizeof(ubo));
         vkTest->copyBufferToBuffer(stagingUniformBuffer, uniformBuffer, sizeof(ubo));
 
+        //TODO Update material buffers with animation data
+
         //Draw frame
         vkTest->draw();
 
@@ -381,10 +386,10 @@ void VkTest::createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo>
 {
     VkVertexInputBindingDescription bindingDescription = {};
     bindingDescription.binding = 0;
-    bindingDescription.stride = 14 * sizeof(float);
+    bindingDescription.stride = sizeof(Model::Vertex);
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions = {};
+    std::array<VkVertexInputAttributeDescription, 7> attributeDescriptions = {};
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
     attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -409,6 +414,16 @@ void VkTest::createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo>
     attributeDescriptions[4].location = 4;
     attributeDescriptions[4].format = VK_FORMAT_R32G32B32_SFLOAT;
     attributeDescriptions[4].offset = 11 * sizeof(float);
+
+    attributeDescriptions[5].binding = 0;
+    attributeDescriptions[5].location = 5;
+    attributeDescriptions[5].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    attributeDescriptions[5].offset = 14 * sizeof(float);
+
+    attributeDescriptions[6].binding = 0;
+    attributeDescriptions[6].location = 6;
+    attributeDescriptions[6].format = VK_FORMAT_R32G32B32A32_SINT;
+    attributeDescriptions[6].offset = 18 * sizeof(float);
 
     //Set state for the fixed functionality pipeline stages
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
@@ -658,7 +673,7 @@ void VkTest::createDescriptorSetLayouts()
     matLayoutBinding.binding = 0;
     matLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     matLayoutBinding.descriptorCount = 1;
-    matLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    matLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT;
 
     //three samplers accessible by the fragment shader
     VkDescriptorSetLayoutBinding samplerLayoutBinding1 = {};
