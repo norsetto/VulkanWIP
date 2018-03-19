@@ -12,7 +12,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/rotate_vector.hpp>
 #ifdef VK_DEBUG
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
+#include <glm/gtx/euler_angles.hpp>
 #endif
 #include <limits>
 #include <chrono>
@@ -298,10 +300,10 @@ int main(int argc, char ** argv)
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
-        //static auto startTime = std::chrono::high_resolution_clock::now();
+        static auto startTime = std::chrono::high_resolution_clock::now();
         auto startFrameTime = std::chrono::high_resolution_clock::now();
 
-        //float time = std::chrono::duration_cast<std::chrono::microseconds>(startFrameTime - startTime).count() / 1e6f;
+        float time = std::chrono::duration_cast<std::chrono::microseconds>(startFrameTime - startTime).count() / 1e6f;
 
         //Check inputs
         if (mouse.pressed) {
@@ -337,7 +339,32 @@ int main(int argc, char ** argv)
         vkTest->copyDataToBuffer(stagingUniformBufferMemory, &ubo, sizeof(ubo));
         vkTest->copyBufferToBuffer(stagingUniformBuffer, uniformBuffer, sizeof(ubo));
 
-        //TODO Update material buffers with animation data
+        //Update material buffers with animation data
+
+        //Get current offset
+        glm::mat4 L_Eye_offset = model->getBoneOffset(5, 0);
+        glm::mat4 R_Eye_offset = model->getBoneOffset(5, 1);
+
+        //get offset position
+        glm::vec4 L_Eye_position = L_Eye_offset[3];
+        glm::vec4 R_Eye_position = R_Eye_offset[3];
+
+        //get offset euler angles
+        float L_Eye_roll, L_Eye_pitch, L_Eye_yaw;
+        float R_Eye_roll, R_Eye_pitch, R_Eye_yaw;
+        glm::extractEulerAngleXYZ(L_Eye_offset, L_Eye_roll, L_Eye_pitch, L_Eye_yaw);
+        glm::extractEulerAngleXYZ(R_Eye_offset, R_Eye_roll, R_Eye_pitch, L_Eye_yaw);
+
+        //Animate joint
+        L_Eye_pitch += 0.05f * cos(time) * frameTime;
+        R_Eye_pitch += 0.05f * cos(time) * frameTime;
+
+        //Update model
+        L_Eye_offset = glm::eulerAngleXYZ(L_Eye_roll, L_Eye_pitch, L_Eye_yaw);
+        L_Eye_offset[3] = L_Eye_position;
+        R_Eye_offset = glm::eulerAngleXYZ(R_Eye_roll, R_Eye_pitch, R_Eye_yaw);
+        R_Eye_offset[3] = R_Eye_position;
+        model->update({ {5, 0, L_Eye_offset}, {6, 0, L_Eye_offset}, {5, 1, R_Eye_offset}, {6, 1, R_Eye_offset} });
 
         //Draw frame
         vkTest->draw();

@@ -33,6 +33,13 @@
 #include <assimp/scene.h>                                   // Output data structure
 #include <assimp/postprocess.h>                             // Post processing flags
 
+struct animated_mesh
+{
+    uint32_t mesh;
+    uint32_t bone;
+    glm::mat4 offset;
+};
+
 class Model {
 
 public:
@@ -102,6 +109,12 @@ public:
     };
     
     void load(const std::string &filename, bool compute_bounding_box, bool compute_tangent_bitangent, bool anisotropy_enable, float max_anisotropy, bool load_bones = false);
+    void setAnimation(uint32_t animationIndex)
+    {
+        assert(animationIndex < scene->mNumAnimations);
+        pAnimation = scene->mAnimations[animationIndex];
+    }
+    void update(const std::vector<animated_mesh> &animatedMeshes);
 
     //Getters
     uint32_t getNumMeshes(void) { return num_meshes; };
@@ -115,18 +128,47 @@ public:
     VkBuffer* getVertexBufferPointer(uint32_t index) { return &vertexBuffer[index]; };
     VkBuffer getIndexBuffer(uint32_t index) { return indexBuffer[index]; };
     uint32_t getNumIndices(uint32_t index) { return num_indices[index]; };
+    glm::mat4 getBoneOffset(uint32_t mesh, uint32_t bone) { return aiMatrix4x4ToGlm(&boneOffset[mesh][bone]); };
 
 private:
 
-    void findUniqueTextures(const aiScene *scene);
-    void loadBones(const aiScene *scene);
-    void transformBoneOffsets(const aiScene *scene, aiNode* pNode, const aiMatrix4x4& ParentTransform);
+    glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4* from)
+    {
+        glm::mat4 to;
+
+        to[0][0] = (float)from->a1; to[0][1] = (float)from->b1;  to[0][2] = (float)from->c1; to[0][3] = (float)from->d1;
+        to[1][0] = (float)from->a2; to[1][1] = (float)from->b2;  to[1][2] = (float)from->c2; to[1][3] = (float)from->d2;
+        to[2][0] = (float)from->a3; to[2][1] = (float)from->b3;  to[2][2] = (float)from->c3; to[2][3] = (float)from->d3;
+        to[3][0] = (float)from->a4; to[3][1] = (float)from->b4;  to[3][2] = (float)from->c4; to[3][3] = (float)from->d4;
+
+        return to;
+    }
+
+    aiMatrix4x4 glmToAiMatrix4x4(const glm::mat4& from)
+    {
+        aiMatrix4x4 to;
+
+        to.a1 = from[0][0]; to.b1 = from[0][1]; to.c1 = from[0][2]; to.d1 = from[0][3];
+        to.a2 = from[1][0]; to.b2 = from[1][1]; to.c2 = from[1][2]; to.d2 = from[1][3];
+        to.a3 = from[2][0]; to.b3 = from[2][1]; to.c3 = from[2][2]; to.d3 = from[2][3];
+        to.a4 = from[3][0]; to.b4 = from[3][1]; to.c4 = from[3][2]; to.d4 = from[3][3];
+
+        return to;
+    }
+
+    void findUniqueTextures(void);
+    void loadBones(void);
+    void transformBoneOffsets(aiNode* pNode, const aiMatrix4x4& ParentTransform);
 #ifdef VK_DEBUG
     void printLevelOrder(aiNode* pNode);
 # endif
     //Base Class
     VkBase *vkBase;
     
+    // Assimp scene
+    Assimp::Importer Importer;
+    const aiScene *scene;
+
     //Vertex and Index buffers and memories
     std::vector<VkBuffer> vertexBuffer, indexBuffer;
     std::vector<VkDeviceMemory> vertexBufferMemory, indexBufferMemory;
@@ -182,10 +224,13 @@ private:
 
     //Root inverse transform matrix
     aiMatrix4x4 globalInverseTransform;
+
+    //Currently active animation
+    aiAnimation* pAnimation;
 };
 
 void Model::load(const std::string &filename, bool compute_bounding_box, bool compute_tangent_bitangent, bool anisotropy_enable, float max_anisotropy, bool load_bones) {
-    Assimp::Importer importer;
+
     unsigned int aiFlags = aiProcess_GenSmoothNormals |
     aiProcess_JoinIdenticalVertices    |
     aiProcess_ImproveCacheLocality     |
@@ -200,14 +245,14 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
 
     if (compute_tangent_bitangent) aiFlags = aiFlags | aiProcess_CalcTangentSpace;
 
-    const aiScene* scene = importer.ReadFile(filename, aiFlags);
+    scene = Importer.ReadFile(filename, aiFlags);
 
     assert(scene);
     assert(scene->HasMeshes());
     num_meshes = scene->mNumMeshes;
 
     //Find unique textures
-    findUniqueTextures(scene);
+    findUniqueTextures();
 
     //Load bones
     bool has_bones = false;
@@ -222,11 +267,11 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
         globalInverseTransform.Inverse();
 
         //Setup bones
-        loadBones(scene);
+        loadBones();
 
         //Fill out initial transformations
         aiMatrix4x4 identity = aiMatrix4x4();
-        transformBoneOffsets(scene, scene->mRootNode, identity);
+        transformBoneOffsets(scene->mRootNode, identity);
 #ifdef VK_DEBUG
         printLevelOrder(scene->mRootNode);
 # endif
@@ -453,25 +498,11 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
         //Process bone data
         if (load_bones) {
             for (uint32_t bone = 0; bone < pMesh->mNumBones; bone++) {
-                aiMatrix4x4 boneTransform = transformedBoneOffset[mesh][bone];
-                materials[mesh].bones[bone] = glm::transpose(glm::make_mat4(&boneTransform.a1));
+                materials[mesh].bones[bone] = aiMatrix4x4ToGlm(&transformedBoneOffset[mesh][bone]);
 #ifdef VK_DEBUG
-                std::cout << "[" << mesh << "," << bone << "]";
-                std::cout << "\t" << glm::to_string(materials[mesh].bones[bone]) << std::endl;
-                std::cout << "\t\t" << glm::to_string(glm::transpose(glm::make_mat4(&boneOffset[mesh][bone].a1))) << std::endl;
+                std::cout << "[" <<  mesh <<  ", " <<  bone <<  "] " << pMesh->mBones[bone]->mName.C_Str() << std::endl;
 #endif
             }
-
-#ifdef VK_DEBUG
-        for (unsigned int v = 0; v < pMesh->mNumVertices; v++) {
-                glm::mat4 matrix = glm::mat4(0.0f);
-                for (uint32_t k = 0; k < MAX_BONES_PER_VERTEX; k++) {
-                    matrix += materials[mesh].bones[bones[mesh].at(v).IDs[k]] * bones[mesh].at(v).weights[k];
-                }
-                std::cout << "[" << mesh << "," << v << "]";
-                std::cout << "\t" << glm::to_string(matrix) << std::endl;
-            }
-#endif
         }
 
         //Finally pack everything into the Buffer struct and load it to the GPU
@@ -494,7 +525,7 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
 }
 
 //Load bone information from ASSIMP mesh
-void Model::loadBones(const aiScene *scene)
+void Model::loadBones()
 {
     bones = new std::vector<VertexBoneData> [num_meshes];
     boneOffset = new std::vector<aiMatrix4x4> [num_meshes];
@@ -530,7 +561,7 @@ void Model::loadBones(const aiScene *scene)
     }
 }
 
-void Model::transformBoneOffsets(const aiScene* scene, aiNode* pNode, const aiMatrix4x4& ParentTransform)
+void Model::transformBoneOffsets(aiNode* pNode, const aiMatrix4x4& ParentTransform)
 {
     std::string nodeName(pNode->mName.data);
     aiMatrix4x4 NodeTransformation(pNode->mTransformation);
@@ -543,9 +574,6 @@ void Model::transformBoneOffsets(const aiScene* scene, aiNode* pNode, const aiMa
         for (uint32_t bone = 0; bone < pMesh->mNumBones; bone++) {
             if (std::string(pMesh->mBones[bone]->mName.data) == nodeName) {
                 transformedBoneOffset[mesh][bone] = globalInverseTransform * GlobalTransformation * boneOffset[mesh][bone];
-#ifdef VK_DEBUG
-                std::cout << "[" << mesh << "," << bone << "]" << std::endl;
-#endif
                 break;
             }
         }
@@ -553,7 +581,32 @@ void Model::transformBoneOffsets(const aiScene* scene, aiNode* pNode, const aiMa
 
     //Recurse through all child nodes
     for (uint32_t i = 0; i < pNode->mNumChildren; i++) {
-        transformBoneOffsets(scene, pNode->mChildren[i], GlobalTransformation);
+        transformBoneOffsets(pNode->mChildren[i], GlobalTransformation);
+    }
+}
+
+//Recursive bone transformation
+void Model::update(const std::vector<animated_mesh> &animatedMeshes)
+{
+    //Update given bone offsets
+    for (auto animatedMesh : animatedMeshes)
+        boneOffset[animatedMesh.mesh][animatedMesh.bone] = glmToAiMatrix4x4(animatedMesh.offset);
+
+    //Update whole hierarchy
+    aiMatrix4x4 identity = aiMatrix4x4();
+    transformBoneOffsets(scene->mRootNode, identity);
+
+    //Update material buffers
+    for (uint32_t mesh = 0; mesh < num_meshes; mesh++) {
+    const aiMesh* pMesh = scene->mMeshes[mesh];
+
+        for (uint32_t bone = 0; bone < pMesh->mNumBones; bone++) {
+            materials[mesh].bones[bone] = aiMatrix4x4ToGlm(&transformedBoneOffset[mesh][bone]);
+        }
+
+        //Finally pack everything into the Buffer struct and load it to the GPU
+        vkBase->copyDataToBuffer(stagingMaterialBufferMemory[mesh], &materials[mesh], sizeof(MATERIALS_BLOCK));
+        vkBase->copyBufferToBuffer(stagingMaterialBuffer[mesh], materialBuffer[mesh], sizeof(MATERIALS_BLOCK));
     }
 }
 
@@ -591,7 +644,7 @@ void Model::printLevelOrder(aiNode* pNode)
 }
 #endif
 
-void Model::findUniqueTextures(const aiScene *scene)
+void Model::findUniqueTextures()
 {
     for (unsigned int i = 0; i < scene->mNumMaterials; i++) {
         int texIndex = 0;
