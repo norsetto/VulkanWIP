@@ -297,6 +297,8 @@ int main(int argc, char ** argv)
     modelMatrix = glm::rotate(modelMatrix, glm::radians(180.0f), camera->get_right());
     modelMatrix = glm::translate(modelMatrix, -model_centre);
 
+    model->setAnimation(0);
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
@@ -340,31 +342,7 @@ int main(int argc, char ** argv)
         vkTest->copyBufferToBuffer(stagingUniformBuffer, uniformBuffer, sizeof(ubo));
 
         //Update material buffers with animation data
-
-        //Get current offset
-        glm::mat4 L_Eye_offset = model->getBoneOffset(5, 0);
-        glm::mat4 R_Eye_offset = model->getBoneOffset(5, 1);
-
-        //get offset position
-        glm::vec4 L_Eye_position = L_Eye_offset[3];
-        glm::vec4 R_Eye_position = R_Eye_offset[3];
-
-        //get offset euler angles
-        float L_Eye_roll, L_Eye_pitch, L_Eye_yaw;
-        float R_Eye_roll, R_Eye_pitch, R_Eye_yaw;
-        glm::extractEulerAngleXYZ(L_Eye_offset, L_Eye_roll, L_Eye_pitch, L_Eye_yaw);
-        glm::extractEulerAngleXYZ(R_Eye_offset, R_Eye_roll, R_Eye_pitch, L_Eye_yaw);
-
-        //Animate joint
-        L_Eye_pitch += 0.05f * cos(time) * frameTime;
-        R_Eye_pitch += 0.05f * cos(time) * frameTime;
-
-        //Update model
-        L_Eye_offset = glm::eulerAngleXYZ(L_Eye_roll, L_Eye_pitch, L_Eye_yaw);
-        L_Eye_offset[3] = L_Eye_position;
-        R_Eye_offset = glm::eulerAngleXYZ(R_Eye_roll, R_Eye_pitch, R_Eye_yaw);
-        R_Eye_offset[3] = R_Eye_position;
-        model->update({ {5, 0, L_Eye_offset}, {6, 0, L_Eye_offset}, {5, 1, R_Eye_offset}, {6, 1, R_Eye_offset} });
+        model->update(time);
 
         //Draw frame
         vkTest->draw();

@@ -113,8 +113,10 @@ public:
     {
         assert(animationIndex < scene->mNumAnimations);
         pAnimation = scene->mAnimations[animationIndex];
+        ticksPerSecond = (float)(scene->mAnimations[animationIndex]->mTicksPerSecond > 0 ? scene->mAnimations[animationIndex]->mTicksPerSecond : 25.0f);
+        animationDuration = (float)scene->mAnimations[animationIndex]->mDuration;
     }
-    void update(const std::vector<animated_mesh> &animatedMeshes);
+    void update(float time);
 
     //Getters
     uint32_t getNumMeshes(void) { return num_meshes; };
@@ -158,14 +160,21 @@ private:
 
     void findUniqueTextures(void);
     void loadBones(void);
-    void transformBoneOffsets(aiNode* pNode, const aiMatrix4x4& ParentTransform);
+    void transformBoneOffsets(float animationTime, aiNode* pNode, const aiMatrix4x4& ParentTransform);
+    const aiNodeAnim* findNodeAnim(const aiAnimation* animation, const std::string nodeName);
+    aiMatrix4x4 interpolateTranslation(float time, const aiNodeAnim* pNodeAnim);
+    aiMatrix4x4 interpolateRotation(float time, const aiNodeAnim* pNodeAnim);
+    aiMatrix4x4 interpolateScale(float time, const aiNodeAnim* pNodeAnim);
+
 #ifdef VK_DEBUG
     void printLevelOrder(aiNode* pNode);
 # endif
     //Base Class
     VkBase *vkBase;
     
-    // Assimp scene
+    /*
+     * Assimp scene: TODO we could cache the animation data and free this
+     */
     Assimp::Importer Importer;
     const aiScene *scene;
 
@@ -227,6 +236,10 @@ private:
 
     //Currently active animation
     aiAnimation* pAnimation;
+
+    //Current animation timings
+    float ticksPerSecond;
+    float animationDuration;
 };
 
 void Model::load(const std::string &filename, bool compute_bounding_box, bool compute_tangent_bitangent, bool anisotropy_enable, float max_anisotropy, bool load_bones) {
@@ -247,8 +260,15 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
 
     scene = Importer.ReadFile(filename, aiFlags);
 
-    assert(scene);
-    assert(scene->HasMeshes());
+    if (!scene) {
+        throw std::runtime_error(Importer.GetErrorString());
+    }
+    if (!scene->HasMeshes()) {
+        std::stringstream errorMessage;
+        errorMessage << "no meshes found in scene ";
+        errorMessage << filename.c_str();
+        throw std::runtime_error(errorMessage.str().c_str());
+    }
     num_meshes = scene->mNumMeshes;
 
     //Find unique textures
@@ -271,7 +291,7 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
 
         //Fill out initial transformations
         aiMatrix4x4 identity = aiMatrix4x4();
-        transformBoneOffsets(scene->mRootNode, identity);
+        transformBoneOffsets(0.0f, scene->mRootNode, identity);
 #ifdef VK_DEBUG
         printLevelOrder(scene->mRootNode);
 # endif
@@ -516,6 +536,18 @@ void Model::load(const std::string &filename, bool compute_bounding_box, bool co
 
     std::cout <<  "Loaded " <<  num_meshes <<  " meshes." <<  std::endl;
 
+    if (scene->HasAnimations() && load_bones) {
+        std::cout << "Scene has " << scene->mNumAnimations << " animations" << std::endl;
+#ifdef VK_DEBUG
+        for (uint32_t animationID = 0; animationID < scene->mNumAnimations; animationID++) {
+            aiAnimation* animation = scene->mAnimations[animationID];
+            std::cout << "animation #" << animationID << " (" << animation->mName.C_Str() << ")" << std::endl;
+            std::cout << "\tduration " << animation->mDuration << " ticks (" << animation->mTicksPerSecond << " tick per second)" << std::endl;
+            std::cout << "\t" << animation->mNumChannels << " bone animation channels" << std::endl;
+        }
+#endif
+    }
+
     if (compute_bounding_box) {
         float tmp = bb->max.x - bb->min.x;
         tmp = bb->max.y - bb->min.y > tmp?bb->max.y - bb->min.y:tmp;
@@ -561,16 +593,32 @@ void Model::loadBones()
     }
 }
 
-void Model::transformBoneOffsets(aiNode* pNode, const aiMatrix4x4& ParentTransform)
+void Model::transformBoneOffsets(float animationTime, aiNode* pNode, const aiMatrix4x4& ParentTransform)
 {
     std::string nodeName(pNode->mName.data);
     aiMatrix4x4 NodeTransformation(pNode->mTransformation);
+
+    if (pAnimation) {
+        // TODO is it worth using a LUT instead of this?
+        const aiNodeAnim* pNodeAnim = findNodeAnim(pAnimation, nodeName);
+
+        if (pNodeAnim) {
+            //Get interpolated matrices between current and next frame
+            aiMatrix4x4 matScale = interpolateScale(animationTime, pNodeAnim);
+            aiMatrix4x4 matRotation = interpolateRotation(animationTime, pNodeAnim);
+            aiMatrix4x4 matTranslation = interpolateTranslation(animationTime, pNodeAnim);
+
+            NodeTransformation = matTranslation * matRotation * matScale;
+        }
+    }
+
     aiMatrix4x4 GlobalTransformation = ParentTransform * NodeTransformation;
 
     //Compute transformation for current node
     for (uint32_t mesh = 0; mesh < num_meshes; mesh++) {
         const aiMesh* pMesh = scene->mMeshes[mesh];
 
+        // TODO can we save time by caching bones which are common between meshes?
         for (uint32_t bone = 0; bone < pMesh->mNumBones; bone++) {
             if (std::string(pMesh->mBones[bone]->mName.data) == nodeName) {
                 transformedBoneOffset[mesh][bone] = globalInverseTransform * GlobalTransformation * boneOffset[mesh][bone];
@@ -581,20 +629,145 @@ void Model::transformBoneOffsets(aiNode* pNode, const aiMatrix4x4& ParentTransfo
 
     //Recurse through all child nodes
     for (uint32_t i = 0; i < pNode->mNumChildren; i++) {
-        transformBoneOffsets(pNode->mChildren[i], GlobalTransformation);
+        transformBoneOffsets(animationTime, pNode->mChildren[i], GlobalTransformation);
     }
 }
 
-//Recursive bone transformation
-void Model::update(const std::vector<animated_mesh> &animatedMeshes)
+//Find animation for a given node
+const aiNodeAnim* Model::findNodeAnim(const aiAnimation* animation, const std::string nodeName)
 {
-    //Update given bone offsets
-    for (auto animatedMesh : animatedMeshes)
-        boneOffset[animatedMesh.mesh][animatedMesh.bone] = glmToAiMatrix4x4(animatedMesh.offset);
+    for (uint32_t i = 0; i < animation->mNumChannels; i++)
+    {
+        const aiNodeAnim* nodeAnim = animation->mChannels[i];
+        if (std::string(nodeAnim->mNodeName.data) == nodeName) {
+            return nodeAnim;
+        }
+    }
+    return nullptr;
+}
+
+//Returns a 4x4 matrix with interpolated translation between current and next frame
+aiMatrix4x4 Model::interpolateTranslation(float time, const aiNodeAnim* pNodeAnim)
+{
+    aiVector3D translation;
+
+    if (pNodeAnim->mNumPositionKeys == 1) {
+        translation = pNodeAnim->mPositionKeys[0].mValue;
+    }
+    else {
+        uint32_t frameIndex = 0;
+        for (uint32_t i = 0; i < pNodeAnim->mNumPositionKeys - 1; i++) {
+            if (time < (float)pNodeAnim->mPositionKeys[i + 1].mTime) {
+                frameIndex = i;
+                break;
+            }
+        }
+
+        aiVectorKey currentFrame = pNodeAnim->mPositionKeys[frameIndex];
+        aiVectorKey nextFrame = pNodeAnim->mPositionKeys[(frameIndex + 1) % pNodeAnim->mNumPositionKeys];
+
+        float delta = (time - (float)currentFrame.mTime) / (float)(nextFrame.mTime - currentFrame.mTime);
+
+        //TODO use mPreState and mPostState to choose the animation behaviour
+        if (delta > 1.0f ||  delta < 0.0f)
+            translation = currentFrame.mValue;
+        else {
+            const aiVector3D& start = currentFrame.mValue;
+            const aiVector3D& end = nextFrame.mValue;
+
+            translation = (start + delta * (end - start));
+        }
+    }
+
+    aiMatrix4x4 mat;
+    aiMatrix4x4::Translation(translation, mat);
+    return mat;
+}
+
+//Returns a 4x4 matrix with interpolated rotation between current and next frame
+aiMatrix4x4 Model::interpolateRotation(float time, const aiNodeAnim* pNodeAnim)
+{
+    aiQuaternion rotation;
+
+    if (pNodeAnim->mNumRotationKeys == 1) {
+        rotation = pNodeAnim->mRotationKeys[0].mValue;
+    } else {
+        uint32_t frameIndex = 0;
+        for (uint32_t i = 0; i < pNodeAnim->mNumRotationKeys - 1; i++) {
+            if (time < (float)pNodeAnim->mRotationKeys[i + 1].mTime) {
+                frameIndex = i;
+                break;
+            }
+        }
+
+        aiQuatKey currentFrame = pNodeAnim->mRotationKeys[frameIndex];
+        aiQuatKey nextFrame = pNodeAnim->mRotationKeys[(frameIndex + 1) % pNodeAnim->mNumRotationKeys];
+
+        float delta = (time - (float)currentFrame.mTime) / (float)(nextFrame.mTime - currentFrame.mTime);
+
+        //TODO use mPreState and mPostState to choose the animation behaviour
+        if (delta > 1.0f ||  delta < 0.0f)
+            rotation = currentFrame.mValue;
+        else {
+            const aiQuaternion& start = currentFrame.mValue;
+            const aiQuaternion& end = nextFrame.mValue;
+
+            aiQuaternion::Interpolate(rotation, start, end, delta);
+            rotation.Normalize();
+        }
+    }
+
+    aiMatrix4x4 mat(rotation.GetMatrix());
+    return mat;
+}
+
+
+//Returns a 4x4 matrix with interpolated scaling between current and next frame
+aiMatrix4x4 Model::interpolateScale(float time, const aiNodeAnim* pNodeAnim)
+{
+    aiVector3D scale;
+
+    if (pNodeAnim->mNumScalingKeys == 1) {
+        scale = pNodeAnim->mScalingKeys[0].mValue;
+    } else {
+        uint32_t frameIndex = 0;
+        for (uint32_t i = 0; i < pNodeAnim->mNumScalingKeys - 1; i++) {
+            if (time < (float)pNodeAnim->mScalingKeys[i + 1].mTime) {
+                frameIndex = i;
+                break;
+            }
+        }
+
+        aiVectorKey currentFrame = pNodeAnim->mScalingKeys[frameIndex];
+        aiVectorKey nextFrame = pNodeAnim->mScalingKeys[(frameIndex + 1) % pNodeAnim->mNumScalingKeys];
+
+        float delta = (time - (float)currentFrame.mTime) / (float)(nextFrame.mTime - currentFrame.mTime);
+
+        //TODO use mPreState and mPostState to choose the animation behaviour
+        if (delta > 1.0f ||  delta < 0.0f)
+            scale = currentFrame.mValue;
+        else {
+            const aiVector3D& start = currentFrame.mValue;
+            const aiVector3D& end = nextFrame.mValue;
+
+            scale = (start + delta * (end - start));
+        }
+    }
+
+    aiMatrix4x4 mat;
+    aiMatrix4x4::Scaling(scale, mat);
+    return mat;
+}
+
+//Recursive bone transformation
+void Model::update(float time)
+{
+    float timeInTicks = time * ticksPerSecond;
+    float animationTime = fmod(timeInTicks, animationDuration);
 
     //Update whole hierarchy
     aiMatrix4x4 identity = aiMatrix4x4();
-    transformBoneOffsets(scene->mRootNode, identity);
+    transformBoneOffsets(animationTime, scene->mRootNode, identity);
 
     //Update material buffers
     for (uint32_t mesh = 0; mesh < num_meshes; mesh++) {
