@@ -13,6 +13,7 @@
 #include <string>
 #include <cstring>
 #include <cstdio>
+#include <functional>
 
 class VkBase
 {
@@ -212,7 +213,7 @@ public:
 
   //Drawing methods
   void setupDrawSemaphores(void);
-  void draw(void);
+  void draw(std::function<void(const std::vector<VkCommandBuffer>&)> updateCommandBuffer = nullptr);
 
   //getters
   VkInstance instance(void)
@@ -1915,7 +1916,7 @@ void VkBase::setupDrawSemaphores()
   }
 }
 
-void VkBase::draw()
+void VkBase::draw(std::function<void(const std::vector<VkCommandBuffer>&)> updateCommandBuffer)
 {
   static uint32_t frameIndex = 0;
   
@@ -1925,6 +1926,9 @@ void VkBase::draw()
   uint32_t imageIndex;
   vkAcquireNextImageKHR(m_device, m_swapChain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphore[frameIndex], VK_NULL_HANDLE, &imageIndex);
 
+  if (updateCommandBuffer != nullptr)
+      updateCommandBuffer(m_commandBuffers[frameIndex]);
+  
   VkSubmitInfo submitInfo = {};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
