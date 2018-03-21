@@ -27,6 +27,7 @@
 class VkTest: public VkBase
 {
 public:
+    
     using VkBase::createFrameBuffers;
     void createGraphicsPipeline(std::vector<VkPipelineShaderStageCreateInfo> shaderStages, VkSampleCountFlagBits samples);
     void createRenderPass(VkSampleCountFlagBits samples);
@@ -277,7 +278,7 @@ int main(int argc, char ** argv)
     glm::mat4 lightMatrix = glm::mat4(1.0f);
 
     //Setup the command buffers
-    vkTest->allocateCommandBuffers();
+    vkTest->allocateCommandBuffers(2);
 
     //Record commands
     vkTest->recordCommandBuffers(model);
@@ -786,32 +787,34 @@ void VkTest::recordCommandBuffers(Model *model)
     beginInfo.pInheritanceInfo = nullptr;
 
     for (size_t i = 0; i < m_commandBuffers.size(); i++) {
+        for (size_t j = 0; j < m_commandBuffers[i].size(); j++) {
 
-      //Set target frame buffer
-      renderPassBeginInfo.framebuffer = m_swapChainFramebuffers[i];
+            //Set target frame buffer
+            renderPassBeginInfo.framebuffer = m_swapChainFramebuffers[j];
 
-      //Start the render pass
-      vkBeginCommandBuffer(m_commandBuffers[i], &beginInfo);
+            //Start the render pass
+            vkBeginCommandBuffer(m_commandBuffers[i][j], &beginInfo);
 
-      //Render pass
-      vkCmdBeginRenderPass(m_commandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-      vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+            //Render pass
+            vkCmdBeginRenderPass(m_commandBuffers[i][j], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBindPipeline(m_commandBuffers[i][j], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
-      for (size_t mesh = 0; mesh < model->getNumMeshes(); ++mesh) {
-        const VkDeviceSize offset = { 0 };
-        vkCmdBindVertexBuffers(m_commandBuffers[i], 0, 1, model->getVertexBufferPointer(mesh), &offset);
-        vkCmdBindIndexBuffer(m_commandBuffers[i], model->getIndexBuffer(mesh), 0, VK_INDEX_TYPE_UINT32);
-        descriptorSets[1] = meshDescriptorSets[mesh];
-        vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);
-        vkCmdDrawIndexed(m_commandBuffers[i], model->getNumIndices(mesh), 1, 0, 0, 0);
-      }
+            for (size_t mesh = 0; mesh < model->getNumMeshes(); ++mesh) {
+                const VkDeviceSize offset = { 0 };
+                vkCmdBindVertexBuffers(m_commandBuffers[i][j], 0, 1, model->getVertexBufferPointer(mesh), &offset);
+                vkCmdBindIndexBuffer(m_commandBuffers[i][j], model->getIndexBuffer(mesh), 0, VK_INDEX_TYPE_UINT32);
+                descriptorSets[1] = meshDescriptorSets[mesh];
+                vkCmdBindDescriptorSets(m_commandBuffers[i][j], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, static_cast<uint32_t>(descriptorSets.size()), descriptorSets.data(), 0, nullptr);
+                vkCmdDrawIndexed(m_commandBuffers[i][j], model->getNumIndices(mesh), 1, 0, 0, 0);
+            }
 
-      vkCmdEndRenderPass(m_commandBuffers[i]);
+            vkCmdEndRenderPass(m_commandBuffers[i][j]);
 
-      //End render pass
-      if (vkEndCommandBuffer(m_commandBuffers[i]) != VK_SUCCESS) {
-        throw std::runtime_error("failed to record command buffer!");
-      }
+            //End render pass
+            if (vkEndCommandBuffer(m_commandBuffers[i][j]) != VK_SUCCESS) {
+                throw std::runtime_error("failed to record command buffer!");
+            }
+        }
     }
 }
 

@@ -24,7 +24,41 @@ public:
     TRIPLE_BUFFER = 3
   };
 
-    struct Image {
+  struct ImageDescriptorInfo {
+    VkDescriptorSet                     targetDescriptorSet;
+    uint32_t                            targetDescriptorBinding;
+    uint32_t                            targetArrayElement;
+    VkDescriptorType                    targetDescriptorType;
+    std::vector<VkDescriptorImageInfo>  imageInfos;
+  };
+
+  struct BufferDescriptorInfo {
+    VkDescriptorSet                     targetDescriptorSet;
+    uint32_t                            targetDescriptorBinding;
+    uint32_t                            targetArrayElement;
+    VkDescriptorType                    targetDescriptorType;
+    std::vector<VkDescriptorBufferInfo> bufferInfos;
+  };
+
+  struct TexelBufferDescriptorInfo {
+    VkDescriptorSet                     targetDescriptorSet;
+    uint32_t                            targetDescriptorBinding;
+    uint32_t                            targetArrayElement;
+    VkDescriptorType                    targetDescriptorType;
+    std::vector<VkBufferView>           texelBufferViews;
+  };
+
+  struct CopyDescriptorInfo {
+    VkDescriptorSet                     targetDescriptorSet;
+    uint32_t                            targetDescriptorBinding;
+    uint32_t                            targetArrayElement;
+    VkDescriptorSet                     sourceDescriptorSet;
+    uint32_t                            sourceDescriptorBinding;
+    uint32_t                            sourceArrayElement;
+    uint32_t                            descriptorCount;
+  };
+
+  struct Image {
     VkImageView view;
     VkImage image;
     VkDeviceMemory memory;
@@ -133,6 +167,7 @@ public:
 
   //Resource and memory methods
   void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkBuffer &buffer);
+  void createBufferView(VkBuffer buffer, VkFormat format, VkDeviceSize memory_offset, VkDeviceSize memory_range, VkBufferView & buffer_view);
   void allocateAndBindMemoryObjectToBuffer(VkBuffer buffer, VkMemoryPropertyFlagBits memory_properties, VkDeviceMemory & memory_object);
   void createAllocateAndBindBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer, VkDeviceMemory &bufferMemory);
   void createSampler(VkFilter mag_filter, VkFilter min_filter, VkSamplerMipmapMode mipmap_mode, VkSamplerAddressMode u_address_mode, VkSamplerAddressMode v_address_mode, VkSamplerAddressMode w_address_mode, float lod_bias, bool anisotropy_enable, float max_anisotropy, bool compare_enable, VkCompareOp compare_operator, float min_lod, float max_lod, VkBorderColor border_color, bool unnormalized_coords, VkSampler & sampler);
@@ -152,6 +187,7 @@ public:
   void createDataBuffer(std::vector<T, A> const& bufferData, VkBuffer &buffer, VkDeviceMemory &bufferMemory, VkBufferUsageFlagBits usage);
   template<typename T, typename A>
   void createDataDoubleBuffer(std::vector<T, A> const& bufferData, VkBuffer &buffer1, VkBuffer &buffer2, VkDeviceMemory &bufferMemory1, VkDeviceMemory &bufferMemory2, VkBufferUsageFlagBits usage);
+  void createStorageTexelBuffer(VkFormat format, VkDeviceSize size, VkBufferUsageFlags usage, bool atomic_operations, VkBuffer & storage_texel_buffer, VkDeviceMemory & memory_object, VkBufferView & storage_texel_buffer_view);
 
   //Descriptor set methods
   void createDescriptorSetLayout(const std::vector<VkDescriptorSetLayoutBinding>& layoutBindings);
@@ -162,11 +198,15 @@ public:
   void allocateDescriptorSets(VkDescriptorSetLayout const & descriptor_set_layout, VkDescriptorSet & descriptor_set);
   void allocateDescriptorSets(std::vector<VkDescriptorSetLayout> const & descriptor_set_layouts, std::vector<VkDescriptorSet> & descriptor_sets);
   void allocateDescriptorSets(VkDescriptorPool descriptor_pool, std::vector<VkDescriptorSetLayout> const & descriptor_set_layouts, std::vector<VkDescriptorSet> & descriptor_sets);
-
+  void updateDescriptorSets(std::vector<ImageDescriptorInfo> const        & image_descriptor_infos,
+                            std::vector<BufferDescriptorInfo> const       & buffer_descriptor_infos,
+                            std::vector<TexelBufferDescriptorInfo> const  & texel_buffer_descriptor_infos,
+                            std::vector<CopyDescriptorInfo> const         & copy_descriptor_infos);
+  
   //Command buffer methods
   void createCommandPool(void);
   void createCommandPool(VkCommandPool & command_pool, VkCommandPoolCreateFlags flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-  void allocateCommandBuffers(void);
+  void allocateCommandBuffers(uint32_t frameResources = 1);
   void allocateCommandBuffers(std::vector<VkCommandBuffer> & commandBuffers);
   void allocateCommandBuffers(VkCommandPool command_pool, uint32_t count, std::vector<VkCommandBuffer> & command_buffers, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
@@ -232,9 +272,10 @@ protected:
   VkQueue m_graphicsQueue;
   VkQueue m_computeQueue;
   VkDescriptorSet m_descriptorSet;
-  VkSemaphore m_imageAvailableSemaphore;
-  VkSemaphore m_renderFinishedSemaphore;
-
+  std::vector<VkSemaphore> m_imageAvailableSemaphore;
+  std::vector<VkSemaphore> m_renderFinishedSemaphore;
+  std::vector<VkFence> m_drawingFinishedFence;
+  
   int m_graphicsFamily = -1;
   int m_computeFamily = -1;
 
@@ -244,16 +285,21 @@ protected:
   std::vector<VkImageView> m_swapChainImageView = {};
   std::vector<VkImage> m_swapChainImages = {};
   std::vector<VkFramebuffer> m_swapChainFramebuffers = {};
-  std::vector<VkCommandBuffer> m_commandBuffers {};
+  std::vector<std::vector<VkCommandBuffer>> m_commandBuffers {};
 };
 
 VkBase::~VkBase()
 {
   vkDeviceWaitIdle(m_device);
 
-  vkDestroySemaphore(m_device, m_renderFinishedSemaphore, nullptr);
-  vkDestroySemaphore(m_device, m_imageAvailableSemaphore, nullptr);
-  vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(m_commandBuffers.size()), m_commandBuffers.data());
+  for (auto renderFinishedSemaphore: m_renderFinishedSemaphore)
+    vkDestroySemaphore(m_device, renderFinishedSemaphore, nullptr);
+  for (auto imageAvailableSemaphore: m_imageAvailableSemaphore)
+    vkDestroySemaphore(m_device, imageAvailableSemaphore, nullptr);
+  for (auto drawingFinishedFence: m_drawingFinishedFence)
+    vkDestroyFence(m_device, drawingFinishedFence, nullptr);
+  for (auto commandBuffer: m_commandBuffers)
+    vkFreeCommandBuffers(m_device, m_commandPool, static_cast<uint32_t>(commandBuffer.size()), commandBuffer.data());
 
   if (m_instance != VK_NULL_HANDLE) {
     if (m_device != VK_NULL_HANDLE) {
@@ -1228,6 +1274,26 @@ void VkBase::loadTexture(Texture &texture, std::string filename, bool anisotropy
     texture.memory = _imageMemory;
 }
 
+void VkBase::createStorageTexelBuffer(VkFormat format, VkDeviceSize size, VkBufferUsageFlags usage, bool atomic_operations, VkBuffer & storage_texel_buffer, VkDeviceMemory & memory_object, VkBufferView & storage_texel_buffer_view)
+{
+    VkFormatProperties format_properties;
+    vkGetPhysicalDeviceFormatProperties(m_physical_device, format, &format_properties);
+    if( !(format_properties.bufferFeatures & VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT) ) {
+      throw std::runtime_error("provided format is not supported for a uniform texel buffer!");
+    }
+
+    if( atomic_operations &&
+        !(format_properties.bufferFeatures & VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT) ) {
+      throw std::runtime_error("provided format is not supported for atomic operations on storage texel buffers!");
+    }
+
+    createBuffer(size, usage | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, storage_texel_buffer);
+
+    allocateAndBindMemoryObjectToBuffer(storage_texel_buffer, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memory_object);
+
+    createBufferView(storage_texel_buffer, format, 0, VK_WHOLE_SIZE, storage_texel_buffer_view);
+}
+
 void VkBase::createFramebuffer(std::vector<VkImageView> const & attachments, VkExtent2D size, uint32_t layers, VkFramebuffer & frame_buffer)
 {
   VkFramebufferCreateInfo framebuffer_create_info = {};
@@ -1514,6 +1580,23 @@ void VkBase::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkBuffer 
   }
 }
 
+void VkBase::createBufferView(VkBuffer buffer, VkFormat format, VkDeviceSize memory_offset, VkDeviceSize memory_range, VkBufferView & buffer_view)
+{
+    VkBufferViewCreateInfo buffer_view_create_info = {
+      VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO,
+      nullptr,
+      0,
+      buffer,
+      format,
+      memory_offset,
+      memory_range
+    };
+
+    if (vkCreateBufferView(m_device, &buffer_view_create_info, nullptr, &buffer_view) != VK_SUCCESS) {
+      throw std::runtime_error("could not create buffer view!");
+    }
+}
+
 void VkBase::createAllocateAndBindBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer, VkDeviceMemory &bufferMemory)
 {
   VkBufferCreateInfo bufferInfo = {};
@@ -1637,6 +1720,80 @@ void VkBase::allocateDescriptorSets(VkDescriptorPool descriptor_pool, std::vecto
   }
 }
 
+void VkBase::updateDescriptorSets(std::vector<ImageDescriptorInfo> const       & image_descriptor_infos,
+                                  std::vector<BufferDescriptorInfo> const      & buffer_descriptor_infos,
+                                  std::vector<TexelBufferDescriptorInfo> const & texel_buffer_descriptor_infos,
+                                  std::vector<CopyDescriptorInfo> const        & copy_descriptor_infos)
+{
+    std::vector<VkWriteDescriptorSet> write_descriptors;
+    std::vector<VkCopyDescriptorSet> copy_descriptors;
+
+    //Image descriptors
+    for(auto & image_descriptor : image_descriptor_infos) {
+      write_descriptors.push_back( {
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        nullptr,
+        image_descriptor.targetDescriptorSet,
+        image_descriptor.targetDescriptorBinding,
+        image_descriptor.targetArrayElement,
+        static_cast<uint32_t>(image_descriptor.imageInfos.size()),
+        image_descriptor.targetDescriptorType,
+        image_descriptor.imageInfos.data(),
+        nullptr,
+        nullptr
+      } );
+    }
+
+    //Buffer descriptors
+    for(auto & buffer_descriptor : buffer_descriptor_infos) {
+      write_descriptors.push_back( {
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        nullptr,
+        buffer_descriptor.targetDescriptorSet,
+        buffer_descriptor.targetDescriptorBinding,
+        buffer_descriptor.targetArrayElement,
+        static_cast<uint32_t>(buffer_descriptor.bufferInfos.size()),
+        buffer_descriptor.targetDescriptorType,
+        nullptr,
+        buffer_descriptor.bufferInfos.data(),
+        nullptr
+      } );
+    }
+
+    //Texel buffer descriptors
+    for(auto & texel_buffer_descriptor : texel_buffer_descriptor_infos) {
+      write_descriptors.push_back( {
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        nullptr,
+        texel_buffer_descriptor.targetDescriptorSet,
+        texel_buffer_descriptor.targetDescriptorBinding,
+        texel_buffer_descriptor.targetArrayElement,
+        static_cast<uint32_t>(texel_buffer_descriptor.texelBufferViews.size()),
+        texel_buffer_descriptor.targetDescriptorType,
+        nullptr,
+        nullptr,
+        texel_buffer_descriptor.texelBufferViews.data()
+      } );
+    }
+
+    //Copy descriptors
+    for( auto & copy_descriptor : copy_descriptor_infos ) {
+      copy_descriptors.push_back( {
+        VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
+        nullptr,
+        copy_descriptor.sourceDescriptorSet,
+        copy_descriptor.sourceDescriptorBinding,
+        copy_descriptor.sourceArrayElement,
+        copy_descriptor.targetDescriptorSet,
+        copy_descriptor.targetDescriptorBinding,
+        copy_descriptor.targetArrayElement,
+        copy_descriptor.descriptorCount
+      } );
+    }
+
+    vkUpdateDescriptorSets(m_device, static_cast<uint32_t>(write_descriptors.size()), write_descriptors.data(), static_cast<uint32_t>(copy_descriptors.size()), copy_descriptors.data() );
+}
+  
 template<typename T, typename A>
 void VkBase::createDataBuffer(std::vector<T, A> const& bufferData, VkBuffer &buffer, VkDeviceMemory &bufferMemory, VkBufferUsageFlagBits usage)
 {
@@ -1682,18 +1839,21 @@ void VkBase::createDataDoubleBuffer(std::vector<T, A> const& bufferData, VkBuffe
   copyBufferToBuffer(buffer1, buffer2, bufferSize);
 }
 
-void VkBase::allocateCommandBuffers()
+void VkBase::allocateCommandBuffers(uint32_t frameResources)
 {
-  m_commandBuffers.resize(m_swapChainFramebuffers.size());
+  m_commandBuffers.resize(frameResources);
+  for (auto &commandBuffer: m_commandBuffers) {
+    commandBuffer.resize(m_swapChainFramebuffers.size());
 
-  VkCommandBufferAllocateInfo allocInfo = {};
-  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocInfo.commandPool = m_commandPool;
-  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandBufferCount = static_cast<uint32_t>(m_commandBuffers.size());
+    VkCommandBufferAllocateInfo allocInfo = {};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = m_commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffer.size());
 
-  if (vkAllocateCommandBuffers(m_device, &allocInfo, m_commandBuffers.data()) != VK_SUCCESS) {
-    throw std::runtime_error("failed to allocate command buffers!");
+    if (vkAllocateCommandBuffers(m_device, &allocInfo, commandBuffer.data()) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate command buffers!");
+    }
   }
 }
 
@@ -1729,38 +1889,59 @@ void VkBase::allocateCommandBuffers(VkCommandPool command_pool, uint32_t count, 
 
 void VkBase::setupDrawSemaphores()
 {
-  VkSemaphoreCreateInfo semaphoreInfo = {};
-  semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+  uint32_t frameResources = static_cast<uint32_t>(m_commandBuffers.size());
+  m_imageAvailableSemaphore.resize(frameResources);
+  m_renderFinishedSemaphore.resize(frameResources);
+  m_drawingFinishedFence.resize(frameResources);
+  
+  for (uint32_t frameResource = 0; frameResource < frameResources; frameResource++) {
+    VkSemaphoreCreateInfo semaphoreInfo = {};
+    semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-  if (vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphore) != VK_SUCCESS
-      ||
-      vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphore) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create semaphores!");
+    if (vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_imageAvailableSemaphore[frameResource]) != VK_SUCCESS
+        ||
+        vkCreateSemaphore(m_device, &semaphoreInfo, nullptr, &m_renderFinishedSemaphore[frameResource]) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create semaphores!");
+    }
+ 
+    VkFenceCreateInfo fenceInfo = {};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    if (vkCreateFence(m_device, &fenceInfo, nullptr, &m_drawingFinishedFence[frameResource]) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create fence!");
+    }
   }
 }
 
 void VkBase::draw()
 {
+  static uint32_t frameIndex = 0;
+  
+  vkWaitForFences(m_device, 1, &m_drawingFinishedFence[frameIndex], VK_FALSE, std::numeric_limits<uint64_t>::max());
+  vkResetFences(m_device, 1, &m_drawingFinishedFence[frameIndex]);
+  
   uint32_t imageIndex;
-  vkAcquireNextImageKHR(m_device, m_swapChain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+  vkAcquireNextImageKHR(m_device, m_swapChain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphore[frameIndex], VK_NULL_HANDLE, &imageIndex);
 
   VkSubmitInfo submitInfo = {};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-  VkSemaphore waitSemaphores[] = { m_imageAvailableSemaphore };
+  VkSemaphore waitSemaphores[] = { m_imageAvailableSemaphore[frameIndex] };
   VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
   submitInfo.waitSemaphoreCount = 1;
   submitInfo.pWaitSemaphores = waitSemaphores;
   submitInfo.pWaitDstStageMask = waitStages;
 
   submitInfo.commandBufferCount = 1;
-  submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];
+  submitInfo.pCommandBuffers = &m_commandBuffers[frameIndex][imageIndex];
 
-  VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphore };
+  VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphore[frameIndex] };
   submitInfo.signalSemaphoreCount = 1;
   submitInfo.pSignalSemaphores = signalSemaphores;
 
-  if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+  if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_drawingFinishedFence[frameIndex]) != VK_SUCCESS) {
     throw std::runtime_error("failed to submit draw command buffer!");
   }
 
@@ -1776,4 +1957,6 @@ void VkBase::draw()
   presentInfo.pImageIndices = &imageIndex;
 
   vkQueuePresentKHR(m_graphicsQueue, &presentInfo);
+  
+  frameIndex = (frameIndex + 1) % m_imageAvailableSemaphore.size();
 }
