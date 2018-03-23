@@ -21,6 +21,7 @@ set(DEMOS
   basic
   model
   asModel
+  particles
   )
 
 # The Python interpreter is needed to compile shaders

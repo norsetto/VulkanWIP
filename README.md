@@ -7,6 +7,7 @@ A WIP collection of simple Vulkan demos which I'm developing.
 * basic       : the usual hello world (mainly the Alexander Overvoorde tutorial)
 * model       : model loading (basic vulkan usage)
 * asModel     : model loading with Assimp (multiple descriptor sets, pipeline (on disk) caches, multisampling, anisotropic filtering)
+* particles   : particles rendering (compute shader + graphic shaders, push constants)
 
 ### Data
 * [kila](https://cgi.tutsplus.com/articles/game-character-creation-series-kila-chapter-1-high-resolution-modeling--cg-24776) - By Antony Ward

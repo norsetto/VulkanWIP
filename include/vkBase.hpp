@@ -147,8 +147,10 @@ public:
   void setLogicalDevice(VkPhysicalDeviceFeatures deviceFeatures = {});
   VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
   void createPipelineCache(VkPipelineCache *pipelineCache = nullptr);
-  void savePipelineCacheToDisk(const std::string &cacheFilename, VkPipelineCache pipelineCache = VK_NULL_HANDLE);
-  void loadPipelineCacheFromDisk(const std::string &cacheFilename, bool validateCache = false, VkPipelineCache pipelineCache = VK_NULL_HANDLE);
+  void savePipelineCacheToDisk(const std::string &cacheFilename);
+  void savePipelineCacheToDisk(const std::string &cacheFilename, VkPipelineCache pipelineCache);
+  size_t loadPipelineCacheFromDisk(const std::string &cacheFilename, bool validateCache = false);
+  size_t loadPipelineCacheFromDisk(const std::string &cacheFilename, bool validateCache, VkPipelineCache &pipelineCache);
   
   //Image presentation methods
   void createSurface(VkSurfaceKHR surface);
@@ -207,6 +209,7 @@ public:
   //Command buffer methods
   void createCommandPool(void);
   void createCommandPool(VkCommandPool & command_pool, VkCommandPoolCreateFlags flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+  void createCommandPool(VkCommandPool & command_pool, VkCommandPoolCreateFlags flags, uint32_t queueFamily);
   void allocateCommandBuffers(uint32_t frameResources = 1);
   void allocateCommandBuffers(std::vector<VkCommandBuffer> & commandBuffers);
   void allocateCommandBuffers(VkCommandPool command_pool, uint32_t count, std::vector<VkCommandBuffer> & command_buffers, VkCommandBufferLevel level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
@@ -756,13 +759,16 @@ void VkBase::createPipelineCache(VkPipelineCache *pipelineCache)
 }
 
 //LunarG SDK VulkanSamples/API-Samples/pipeline_cache/pipeline_cache.cpp
+void VkBase::savePipelineCacheToDisk(const std::string &cacheFilename)
+{
+    savePipelineCacheToDisk(cacheFilename, m_pipelineCache);
+}
+
 void VkBase::savePipelineCacheToDisk(const std::string &cacheFilename, VkPipelineCache pipelineCache)
 {
     size_t cacheSize = 0;
     void *cacheData = nullptr;
 
-    if (pipelineCache == VK_NULL_HANDLE)
-        pipelineCache = m_pipelineCache;
     if (pipelineCache == VK_NULL_HANDLE)
         throw std::runtime_error("invalid pipeline cache handle!");
         
@@ -791,7 +797,12 @@ void VkBase::savePipelineCacheToDisk(const std::string &cacheFilename, VkPipelin
 }
 
 //LunarG SDK VulkanSamples/API-Samples/pipeline_cache/pipeline_cache.cpp
-void VkBase::loadPipelineCacheFromDisk(const std::string &cacheFilename, bool validateCache, VkPipelineCache pipelineCache)
+size_t VkBase::loadPipelineCacheFromDisk(const std::string &cacheFilename, bool validateCache)
+{
+    return loadPipelineCacheFromDisk(cacheFilename, validateCache, m_pipelineCache);
+}
+
+size_t VkBase::loadPipelineCacheFromDisk(const std::string &cacheFilename, bool validateCache, VkPipelineCache &pipelineCache)
 {
     size_t cacheSize = 0;
     void *cacheData = nullptr;
@@ -883,18 +894,17 @@ void VkBase::loadPipelineCacheFromDisk(const std::string &cacheFilename, bool va
     pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
     pipelineCacheCreateInfo.initialDataSize = cacheSize;
     pipelineCacheCreateInfo.pInitialData = cacheData;
-    if (pipelineCache == VK_NULL_HANDLE) {
-        if (vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &m_pipelineCache) != VK_SUCCESS)
-            throw std::runtime_error("couldn't create pipeline cache!");
-    } else {
-        if (vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS)
-            throw std::runtime_error("couldn't create pipeline cache!");
+    if (vkCreatePipelineCache(m_device, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS) {
+        throw std::runtime_error("couldn't create pipeline cache!");
     }
     
     //clean up
-    if (cacheData)
+    if (cacheData) {
         free(cacheData);
-    cacheData = nullptr;
+        cacheData = nullptr;
+    }
+    
+    return cacheSize;
 }
 
 void VkBase::createSurface(VkSurfaceKHR surface)
@@ -1410,6 +1420,18 @@ void VkBase::createCommandPool(VkCommandPool & command_pool, VkCommandPoolCreate
   }
 }
 
+void VkBase::createCommandPool(VkCommandPool & command_pool, VkCommandPoolCreateFlags flags, uint32_t queueFamily)
+{
+  VkCommandPoolCreateInfo poolInfo = {};
+  poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+  poolInfo.queueFamilyIndex = queueFamily;
+  poolInfo.flags =flags;
+
+  if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &command_pool) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create command pool!");
+  }
+}
+
 void VkBase::copyDataToBuffer(const VkDeviceMemory memory, void* data, const size_t data_size)
 {
   void* local_data;
@@ -1453,9 +1475,14 @@ void VkBase::copyBufferToBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDevice
   submitInfo.commandBufferCount = 1;
   submitInfo.pCommandBuffers = &commandBuffer;
 
-  vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-  vkQueueWaitIdle(m_graphicsQueue);
+  VkFence fence;
+  VkFenceCreateInfo createInfo = {};
+  createInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 
+  vkCreateFence(m_device, &createInfo, nullptr, &fence);
+  vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, fence);
+  vkWaitForFences(m_device, 1, &fence, VK_FALSE, std::numeric_limits<uint64_t>::max());
+  vkDestroyFence(m_device, fence, nullptr);
   vkFreeCommandBuffers(m_device, m_commandPool, 1, &commandBuffer);
 }
 
