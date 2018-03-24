@@ -24,8 +24,7 @@
 #include <vector>
 #include <chrono>
 #include <iomanip>
-#include <cstdlib>
-#include <ctime>
+#include <random>
 
 #define NUM_PARTICLES 2000
 
@@ -254,21 +253,21 @@ int main(int argc, char ** argv)
     vkTest->createDataDoubleBuffer(uniforms, stagingUniformBuffer, uniformBuffer, stagingUniformBufferMemory, uniformBufferMemory, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     //Create the vertex buffer
-#define RANDOM(MIN, MAX) MIN+static_cast<float>(std::rand())*(MAX-MIN)/(static_cast<float>(RAND_MAX))
-    
-    std::srand(std::time(nullptr));
+	std::random_device rd;
+	std::mt19937 mt(rd());
+	std::uniform_real_distribution<float> dist(0.0f, 1.0f);
     for( uint32_t i = 0; i < NUM_PARTICLES; ++i ) {
         PARTICLE particle;
-        float azimuth = RANDOM(0.0f, 360.0f);
-        float elevation = RANDOM(-90.0f, 90.0f);
-        float radius = RANDOM(1.0f, 2.0f);
+        float azimuth = 360.0f * dist(mt);
+        float elevation = -90.0f * dist(mt) * 180.0f;
+		float radius = 1.0f + dist(mt);
         particle.position = glm::vec4(radius * cos(elevation)* cos(azimuth),
                                       radius * sin(elevation),
                                       radius * cos(elevation) * sin(azimuth), 1.0f);
-        particle.color = glm::vec4(RANDOM(0.50f, 1.00f),
-                                   RANDOM(0.25f, 0.75f),
-                                   RANDOM(0.00f, 0.50f),
-                                   RANDOM(0.50f, 2.00f));
+        particle.color = glm::vec4(0.50f + dist(mt) * 0.5f,
+								   0.25f + dist(mt) * 0.5f,
+								   0.00f + dist(mt) * 0.5f,
+								   0.50f + dist(mt) * 1.5f);
         particles.push_back(particle);
     }
     VkDeviceSize particlesSize = sizeof(PARTICLE)*particles.size();
