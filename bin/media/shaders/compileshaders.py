@@ -19,7 +19,7 @@ for exts in ('*.vert', '*.frag', '*.comp', '*.geom', '*.tesc', '*.tese'):
 
 failedshaders = []
 for shaderfile in shaderfiles:
-		if subprocess.call("~/bin/glslangValidator -V %s -o %s.spv" % (shaderfile, shaderfile), shell=True) != 0:
+		if subprocess.call("glslangValidator -V %s -o %s.spv" % (shaderfile, shaderfile), shell=True) != 0:
 			failedshaders.append(shaderfile)
 
 if len(failedshaders) > 0:
