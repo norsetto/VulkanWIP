@@ -258,16 +258,16 @@ int main(int argc, char ** argv)
 	std::uniform_real_distribution<float> dist(0.0f, 1.0f);
     for( uint32_t i = 0; i < NUM_PARTICLES; ++i ) {
         PARTICLE particle;
-        float azimuth = 360.0f * dist(mt);
-        float elevation = -90.0f * dist(mt) * 180.0f;
-		float radius = 1.0f + dist(mt);
+        float azimuth = 2.0f * M_PI * dist(mt);
+        float elevation = (-10.0f + dist(mt) * 10.0f) * M_PI / 180.0f;
+		float radius = 1.0f + 0.75f * dist(mt);
         particle.position = glm::vec4(radius * cos(elevation)* cos(azimuth),
                                       radius * sin(elevation),
                                       radius * cos(elevation) * sin(azimuth), 1.0f);
-        particle.color = glm::vec4(0.50f + dist(mt) * 0.5f,
-								   0.25f + dist(mt) * 0.5f,
-								   0.00f + dist(mt) * 0.5f,
-								   0.50f + dist(mt) * 1.5f);
+        particle.color = glm::vec4( 0.40f + dist(mt) * 0.4f,
+								    0.25f + dist(mt) * 0.5f,
+								    0.00f + dist(mt) * 0.5f,
+								   -1.50f + dist(mt) * 3.0f);
         particles.push_back(particle);
     }
     VkDeviceSize particlesSize = sizeof(PARTICLE)*particles.size();
@@ -315,7 +315,7 @@ int main(int argc, char ** argv)
     vkTest->createFrameBuffers();
 
     //Set camera
-    camera = new Camera(glm::vec3(0.0f, 0.0f, -4.0f));
+    camera = new Camera(glm::vec3(0.0f, 0.0f, -5.0f));
     camera->lookAt(glm::vec3(0.0f));
     camera->set_proj_matrix(width / (float)height, 0.01f, 100.0f);
     camera->set_speed(1000.0f);
