@@ -41,8 +41,15 @@ endif()
 find_package(Vulkan REQUIRED)
 include_directories(${Vulkan_INCLUDE_DIRS})
 
-find_package(ASSIMP REQUIRED)
-include_directories(${ASSIMP_INCLUDE_DIRS})
+if(WIN32)
+  find_path(ASSIMP_DIR Assimp $ENV{PROGRAMFILES}/Assimp/ DOC "The directory where Assimp resides")
+  find_path(ASSIMP_INCLUDE_DIRS assimp/Importer.hpp $ENV{PROGRAMFILES}/Assimp/include ${ASSIMP_DIR}/include DOC "The directory where assimp/Importer.h resides")
+  find_library(ASSIMP_LIBRARIES NAMES assimp GLFW PATHS $ENV{PROGRAMFILES}/Assimp/lib/x64 ${ASSIMP_DIR}/lib/x64 DOC "The assimp library")
+  include_directories(${ASSIMP_INCLUDE_DIRS})
+ else()
+  find_package(ASSIMP REQUIRED)
+  include_directories(${ASSIMP_INCLUDE_DIRS})
+endif()
 
 find_package(Threads REQUIRED )
 
