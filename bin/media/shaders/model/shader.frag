@@ -23,7 +23,7 @@ void main() {
 	vec3 V = -normalize(inPosition);
 	L += V;
 	L = normalize(L);
-	vec3 R = reflect(L, N);
+	vec3 R = reflect(-L, N);
 
 	float ambient = 0.2;
 	float diffuse = max(0.0, dot(N, L));

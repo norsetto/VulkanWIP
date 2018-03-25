@@ -35,7 +35,7 @@ void main()
     //Compute and normalize light, view and reflection vectors
     vec3 lightDir = normalize(L);
     vec3 viewDir  = normalize(V);
-    vec3 reflDir  = normalize(reflect(normDir, lightDir));
+    vec3 reflDir  = normalize(reflect(-lightDir, normDir));
 
     //Lighting equations
     float NdotL = dot(normDir, lightDir);
@@ -47,5 +47,5 @@ void main()
     
     specular_color = texture(spcUnit, TexCoord);
     specular_color *= pow(max(0.0, RdotV), auxilary[0]);
-    color.rgb = (specular_color * 0.25 + diffuse_color  + ambient).rgb;
+    color.rgb = (specular_color * 0.35 + diffuse_color  + ambient).rgb;
 }

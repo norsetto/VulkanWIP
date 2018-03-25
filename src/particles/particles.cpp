@@ -253,21 +253,21 @@ int main(int argc, char ** argv)
     vkTest->createDataDoubleBuffer(uniforms, stagingUniformBuffer, uniformBuffer, stagingUniformBufferMemory, uniformBufferMemory, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
     //Create the vertex buffer
-	std::random_device rd;
-	std::mt19937 mt(rd());
-	std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    std::random_device rd;
+    std::mt19937 mt(rd());
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
     for( uint32_t i = 0; i < NUM_PARTICLES; ++i ) {
         PARTICLE particle;
         float azimuth = 2.0f * M_PI * dist(mt);
         float elevation = (-10.0f + dist(mt) * 10.0f) * M_PI / 180.0f;
-		float radius = 1.0f + 0.75f * dist(mt);
+        float radius = 1.0f + 0.75f * dist(mt);
         particle.position = glm::vec4(radius * cos(elevation)* cos(azimuth),
                                       radius * sin(elevation),
                                       radius * cos(elevation) * sin(azimuth), 1.0f);
         particle.color = glm::vec4( 0.40f + dist(mt) * 0.4f,
-								    0.25f + dist(mt) * 0.5f,
-								    0.00f + dist(mt) * 0.5f,
-								   -1.50f + dist(mt) * 3.0f);
+                                    0.25f + dist(mt) * 0.5f,
+                                    0.00f + dist(mt) * 0.5f,
+                                    -1.50f + dist(mt) * 3.0f);
         particles.push_back(particle);
     }
     VkDeviceSize particlesSize = sizeof(PARTICLE)*particles.size();
