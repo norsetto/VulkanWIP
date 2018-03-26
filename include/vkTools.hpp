@@ -385,8 +385,12 @@ void GLSLtoSPV(const VkShaderStageFlagBits shaderType, const char *pshader, std:
 {
     glslang::TProgram* program = new glslang::TProgram;
     const char *shaderStrings[1];
-    TBuiltInResource Resources;
-    initializeResources(Resources, limits);
+    static TBuiltInResource Resources;
+    static bool Resources_initialized = false;
+    if (!Resources_initialized) {
+        initializeResources(Resources, limits);
+        Resources_initialized = true;
+    }
 
     // Enable SPIR-V and Vulkan rules when parsing GLSL
     EShMessages messages = (EShMessages)(EShMsgSpvRules | EShMsgVulkanRules);
@@ -425,6 +429,11 @@ void GLSLtoSPV(const VkShaderStageFlagBits shaderType, const char *pshader, std:
     }
 
     glslang::GlslangToSpv(*program->getIntermediate(stage), spirv);
+
+    if (spirv.size() == 0) {
+        throw std::runtime_error("error in spirv blob generation!");
+    }
+
     delete program;
     delete shader;
 }
@@ -479,7 +488,6 @@ EShLanguage getLanguage(const VkShaderStageFlagBits shaderType)
 // THE SOFTWARE.
 //
 
-//TODO cache all these
 void initializeResources(TBuiltInResource &Resources,  const VkPhysicalDeviceLimits& limits)
 {
     uint32_t max_storage_image_samples = 0;
