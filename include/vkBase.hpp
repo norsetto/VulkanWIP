@@ -1357,7 +1357,7 @@ void VkBase::createShaderStage(const std::string& filename, const VkShaderStageF
     glslang::InitializeProcess();
 
     shaderCode.push_back('\0');
-    VkTools::GLSLtoSPV(stage, shaderCode.data(), spvCode);
+    VkTools::GLSLtoSPV(stage, shaderCode.data(), spvCode, m_devProperties.limits);
     
     glslang::FinalizeProcess();
     

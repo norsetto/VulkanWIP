@@ -18,6 +18,7 @@
 #include <iostream>
 #include <sstream>
 #include <memory>
+#include <limits.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -378,14 +379,14 @@ namespace VkTools {
 */
 
 EShLanguage getLanguage(const VkShaderStageFlagBits shaderType);
-void initializeResources(TBuiltInResource &Resources);
+void initializeResources(TBuiltInResource &Resources,  const VkPhysicalDeviceLimits& limits);
 
-void GLSLtoSPV(const VkShaderStageFlagBits shaderType, const char *pshader, std::vector<uint32_t> &spirv)
+void GLSLtoSPV(const VkShaderStageFlagBits shaderType, const char *pshader, std::vector<uint32_t> &spirv, const VkPhysicalDeviceLimits& limits)
 {
     glslang::TProgram* program = new glslang::TProgram;
     const char *shaderStrings[1];
     TBuiltInResource Resources;
-    initializeResources(Resources);
+    initializeResources(Resources, limits);
 
     // Enable SPIR-V and Vulkan rules when parsing GLSL
     EShMessages messages = (EShMessages)(EShMsgSpvRules | EShMsgVulkanRules);
@@ -456,100 +457,175 @@ EShLanguage getLanguage(const VkShaderStageFlagBits shaderType)
     }
 }
 
-void initializeResources(TBuiltInResource &Resources)
+//
+// Copyright (c) 2016 Advanced Micro Devices, Inc. All rights reserved.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+//
+
+//TODO cache all these
+void initializeResources(TBuiltInResource &Resources,  const VkPhysicalDeviceLimits& limits)
 {
-    Resources.maxLights = 32;
-    Resources.maxClipPlanes = 6;
-    Resources.maxTextureUnits = 32;
-    Resources.maxTextureCoords = 32;
-    Resources.maxVertexAttribs = 64;
-    Resources.maxVertexUniformComponents = 4096;
-    Resources.maxVaryingFloats = 64;
-    Resources.maxVertexTextureImageUnits = 32;
-    Resources.maxCombinedTextureImageUnits = 80;
-    Resources.maxTextureImageUnits = 32;
-    Resources.maxFragmentUniformComponents = 4096;
-    Resources.maxDrawBuffers = 32;
-    Resources.maxVertexUniformVectors = 128;
-    Resources.maxVaryingVectors = 8;
-    Resources.maxFragmentUniformVectors = 16;
-    Resources.maxVertexOutputVectors = 16;
-    Resources.maxFragmentInputVectors = 15;
-    Resources.minProgramTexelOffset = -8;
-    Resources.maxProgramTexelOffset = 7;
-    Resources.maxClipDistances = 8;
-    Resources.maxComputeWorkGroupCountX = 65535;
-    Resources.maxComputeWorkGroupCountY = 65535;
-    Resources.maxComputeWorkGroupCountZ = 65535;
-    Resources.maxComputeWorkGroupSizeX = 1024;
-    Resources.maxComputeWorkGroupSizeY = 1024;
-    Resources.maxComputeWorkGroupSizeZ = 64;
-    Resources.maxComputeUniformComponents = 1024;
-    Resources.maxComputeTextureImageUnits = 16;
-    Resources.maxComputeImageUniforms = 8;
-    Resources.maxComputeAtomicCounters = 8;
-    Resources.maxComputeAtomicCounterBuffers = 1;
-    Resources.maxVaryingComponents = 60;
-    Resources.maxVertexOutputComponents = 64;
-    Resources.maxGeometryInputComponents = 64;
-    Resources.maxGeometryOutputComponents = 128;
-    Resources.maxFragmentInputComponents = 128;
-    Resources.maxImageUnits = 8;
-    Resources.maxCombinedImageUnitsAndFragmentOutputs = 8;
-    Resources.maxCombinedShaderOutputResources = 8;
-    Resources.maxImageSamples = 0;
-    Resources.maxVertexImageUniforms = 0;
-    Resources.maxTessControlImageUniforms = 0;
-    Resources.maxTessEvaluationImageUniforms = 0;
-    Resources.maxGeometryImageUniforms = 0;
-    Resources.maxFragmentImageUniforms = 8;
-    Resources.maxCombinedImageUniforms = 8;
-    Resources.maxGeometryTextureImageUnits = 16;
-    Resources.maxGeometryOutputVertices = 256;
-    Resources.maxGeometryTotalOutputComponents = 1024;
-    Resources.maxGeometryUniformComponents = 1024;
-    Resources.maxGeometryVaryingComponents = 64;
-    Resources.maxTessControlInputComponents = 128;
-    Resources.maxTessControlOutputComponents = 128;
-    Resources.maxTessControlTextureImageUnits = 16;
-    Resources.maxTessControlUniformComponents = 1024;
-    Resources.maxTessControlTotalOutputComponents = 4096;
-    Resources.maxTessEvaluationInputComponents = 128;
-    Resources.maxTessEvaluationOutputComponents = 128;
-    Resources.maxTessEvaluationTextureImageUnits = 16;
-    Resources.maxTessEvaluationUniformComponents = 1024;
-    Resources.maxTessPatchComponents = 120;
-    Resources.maxPatchVertices = 32;
-    Resources.maxTessGenLevel = 64;
-    Resources.maxViewports = 16;
-    Resources.maxVertexAtomicCounters = 0;
-    Resources.maxTessControlAtomicCounters = 0;
-    Resources.maxTessEvaluationAtomicCounters = 0;
-    Resources.maxGeometryAtomicCounters = 0;
-    Resources.maxFragmentAtomicCounters = 8;
-    Resources.maxCombinedAtomicCounters = 8;
-    Resources.maxAtomicCounterBindings = 1;
-    Resources.maxVertexAtomicCounterBuffers = 0;
-    Resources.maxTessControlAtomicCounterBuffers = 0;
-    Resources.maxTessEvaluationAtomicCounterBuffers = 0;
-    Resources.maxGeometryAtomicCounterBuffers = 0;
-    Resources.maxFragmentAtomicCounterBuffers = 1;
-    Resources.maxCombinedAtomicCounterBuffers = 1;
-    Resources.maxAtomicCounterBufferSize = 16384;
-    Resources.maxTransformFeedbackBuffers = 4;
-    Resources.maxTransformFeedbackInterleavedComponents = 64;
-    Resources.maxCullDistances = 8;
-    Resources.maxCombinedClipAndCullDistances = 8;
-    Resources.maxSamples = 4;
-    Resources.limits.nonInductiveForLoops = 1;
-    Resources.limits.whileLoops = 1;
-    Resources.limits.doWhileLoops = 1;
-    Resources.limits.generalUniformIndexing = 1;
+    uint32_t max_storage_image_samples = 0;
+    uint32_t max_sampled_image_samples = 0;
+    VkSampleCountFlags max_sampled_image_sample_count = limits.sampledImageColorSampleCounts;
+    VkSampleCountFlags max_storage_image_sample_count = limits.storageImageSampleCounts;
+
+    max_sampled_image_sample_count = std::max<VkSampleCountFlags>(max_sampled_image_sample_count, limits.sampledImageDepthSampleCounts);
+    max_sampled_image_sample_count = std::max<VkSampleCountFlags>(max_sampled_image_sample_count,       limits.sampledImageIntegerSampleCounts);
+    max_sampled_image_sample_count = std::max<VkSampleCountFlags>(max_sampled_image_sample_count,       limits.sampledImageStencilSampleCounts);
+
+    const struct SampleCountToSamplesData
+    {
+        VkSampleCountFlags sample_count;
+        uint32_t*          out_result_ptr;
+    } conversion_items[] =
+    {
+        {max_sampled_image_sample_count, &max_sampled_image_samples},
+        {max_storage_image_sample_count, &max_storage_image_samples}
+    };
+    const uint32_t n_conversion_items = sizeof(conversion_items) / sizeof(conversion_items[0]);
+
+    for (uint32_t n_conversion_item = 0;
+         n_conversion_item < n_conversion_items;
+         ++n_conversion_item)
+    {
+        const SampleCountToSamplesData& current_item = conversion_items[n_conversion_item];
+        uint32_t                        result       = 1;
+
+        if (current_item.sample_count & VK_SAMPLE_COUNT_16_BIT)
+        {
+            result = 16;
+        }
+        else
+        if (current_item.sample_count & VK_SAMPLE_COUNT_8_BIT)
+        {
+            result = 8;
+        }
+        else
+        if (current_item.sample_count & VK_SAMPLE_COUNT_4_BIT)
+        {
+            result = 4;
+        }
+        else
+        if (current_item.sample_count & VK_SAMPLE_COUNT_2_BIT)
+        {
+            result = 2;
+        }
+
+        *current_item.out_result_ptr = result;
+    }
+
+    #define CLAMP_TO_INT_MAX(x) ((x <= INT_MAX) ? x : INT_MAX)
+
+    Resources.maxLights                                   = 32;
+    Resources.maxClipPlanes                               = 6;
+    Resources.maxTextureUnits                             = 32;
+    Resources.maxTextureCoords                            = 32;
+    Resources.maxVertexAttribs                            = CLAMP_TO_INT_MAX(limits.maxVertexInputAttributes);
+    Resources.maxVertexUniformComponents                  = 4096;
+    Resources.maxVaryingFloats                            = 64;
+    Resources.maxVertexTextureImageUnits                  = 32;
+    Resources.maxCombinedTextureImageUnits                = 80;
+    Resources.maxTextureImageUnits                        = 32;
+    Resources.maxFragmentUniformComponents                = 4096;
+    Resources.maxDrawBuffers                              = 32;
+    Resources.maxVertexUniformVectors                     = 128;
+    Resources.maxVaryingVectors                           = 8;
+    Resources.maxFragmentUniformVectors                   = 16;
+    Resources.maxVertexOutputVectors                      = CLAMP_TO_INT_MAX(limits.maxVertexOutputComponents / 4);
+    Resources.maxFragmentInputVectors                     = CLAMP_TO_INT_MAX(limits.maxFragmentInputComponents / 4);
+    Resources.minProgramTexelOffset                       = CLAMP_TO_INT_MAX(limits.minTexelOffset);
+    Resources.maxProgramTexelOffset                       = CLAMP_TO_INT_MAX(limits.maxTexelOffset);
+    Resources.maxClipDistances                            = CLAMP_TO_INT_MAX(limits.maxClipDistances);
+    Resources.maxComputeWorkGroupCountX                   = CLAMP_TO_INT_MAX(limits.maxComputeWorkGroupCount[0]);
+    Resources.maxComputeWorkGroupCountY                   = CLAMP_TO_INT_MAX(limits.maxComputeWorkGroupCount[1]);
+    Resources.maxComputeWorkGroupCountZ                   = CLAMP_TO_INT_MAX(limits.maxComputeWorkGroupCount[2]);
+    Resources.maxComputeWorkGroupSizeX                    = CLAMP_TO_INT_MAX(limits.maxComputeWorkGroupSize[0]);
+    Resources.maxComputeWorkGroupSizeY                    = CLAMP_TO_INT_MAX(limits.maxComputeWorkGroupSize[1]);
+    Resources.maxComputeWorkGroupSizeZ                    = CLAMP_TO_INT_MAX(limits.maxComputeWorkGroupSize[2]);
+    Resources.maxComputeUniformComponents                 = 1024;
+    Resources.maxComputeTextureImageUnits                 = 16;
+    Resources.maxComputeImageUniforms                     = CLAMP_TO_INT_MAX(limits.maxPerStageDescriptorStorageImages);
+    Resources.maxComputeAtomicCounters                    = 8;
+    Resources.maxComputeAtomicCounterBuffers              = 1;
+    Resources.maxVaryingComponents                        = 60;
+    Resources.maxVertexOutputComponents                   = CLAMP_TO_INT_MAX(limits.maxVertexOutputComponents);
+    Resources.maxGeometryInputComponents                  = CLAMP_TO_INT_MAX(limits.maxGeometryInputComponents);
+    Resources.maxGeometryOutputComponents                 = CLAMP_TO_INT_MAX(limits.maxGeometryOutputComponents);
+    Resources.maxFragmentInputComponents                  = CLAMP_TO_INT_MAX(limits.maxFragmentInputComponents);
+    Resources.maxImageUnits                               = 8;
+    Resources.maxCombinedImageUnitsAndFragmentOutputs     = 8;
+    Resources.maxCombinedShaderOutputResources            = CLAMP_TO_INT_MAX(limits.maxFragmentCombinedOutputResources);
+    Resources.maxImageSamples                             = max_storage_image_samples;
+    Resources.maxVertexImageUniforms                      = CLAMP_TO_INT_MAX(limits.maxPerStageDescriptorStorageImages);
+    Resources.maxTessControlImageUniforms                 = CLAMP_TO_INT_MAX(limits.maxPerStageDescriptorStorageImages);
+    Resources.maxTessEvaluationImageUniforms              = CLAMP_TO_INT_MAX(limits.maxPerStageDescriptorStorageImages);
+    Resources.maxGeometryImageUniforms                    = CLAMP_TO_INT_MAX(limits.maxPerStageDescriptorStorageImages);
+    Resources.maxFragmentImageUniforms                    = CLAMP_TO_INT_MAX(limits.maxPerStageDescriptorStorageImages);
+    Resources.maxCombinedImageUniforms                    = CLAMP_TO_INT_MAX(5 * limits.maxPerStageDescriptorStorageImages);
+    Resources.maxGeometryTextureImageUnits                = 16;
+    Resources.maxGeometryOutputVertices                   = CLAMP_TO_INT_MAX(limits.maxGeometryOutputVertices);
+    Resources.maxGeometryTotalOutputComponents            = CLAMP_TO_INT_MAX(limits.maxGeometryTotalOutputComponents);
+    Resources.maxGeometryUniformComponents                = 1024;
+    Resources.maxGeometryVaryingComponents                = CLAMP_TO_INT_MAX(limits.maxGeometryInputComponents);
+    Resources.maxTessControlInputComponents               = CLAMP_TO_INT_MAX(limits.maxTessellationControlPerVertexInputComponents);
+    Resources.maxTessControlOutputComponents              = CLAMP_TO_INT_MAX(limits.maxTessellationControlPerVertexOutputComponents);
+    Resources.maxTessControlTextureImageUnits             = 16;
+    Resources.maxTessControlUniformComponents             = 1024;
+    Resources.maxTessControlTotalOutputComponents         = CLAMP_TO_INT_MAX(limits.maxTessellationControlTotalOutputComponents);
+    Resources.maxTessEvaluationInputComponents            = CLAMP_TO_INT_MAX(limits.maxTessellationEvaluationInputComponents);
+    Resources.maxTessEvaluationOutputComponents           = CLAMP_TO_INT_MAX(limits.maxTessellationEvaluationOutputComponents);
+    Resources.maxTessEvaluationTextureImageUnits          = 16;
+    Resources.maxTessEvaluationUniformComponents          = 1024;
+    Resources.maxTessPatchComponents                      = CLAMP_TO_INT_MAX(limits.maxTessellationControlPerPatchOutputComponents);
+    Resources.maxPatchVertices                            = CLAMP_TO_INT_MAX(limits.maxTessellationPatchSize);
+    Resources.maxTessGenLevel                             = CLAMP_TO_INT_MAX(limits.maxTessellationGenerationLevel);
+    Resources.maxViewports                                = CLAMP_TO_INT_MAX(limits.maxViewports);
+    Resources.maxVertexAtomicCounters                     = 0;
+    Resources.maxTessControlAtomicCounters                = 0;
+    Resources.maxTessEvaluationAtomicCounters             = 0;
+    Resources.maxGeometryAtomicCounters                   = 0;
+    Resources.maxFragmentAtomicCounters                   = 0;
+    Resources.maxCombinedAtomicCounters                   = 0;
+    Resources.maxAtomicCounterBindings                    = 0;
+    Resources.maxVertexAtomicCounterBuffers               = 0;
+    Resources.maxTessControlAtomicCounterBuffers          = 0;
+    Resources.maxTessEvaluationAtomicCounterBuffers       = 0;
+    Resources.maxGeometryAtomicCounterBuffers             = 0;
+    Resources.maxFragmentAtomicCounterBuffers             = 0;
+    Resources.maxCombinedAtomicCounterBuffers             = 0;
+    Resources.maxAtomicCounterBufferSize                  = 0;
+    Resources.maxTransformFeedbackBuffers                 = 0;
+    Resources.maxTransformFeedbackInterleavedComponents   = 0;
+    Resources.maxCullDistances                            = CLAMP_TO_INT_MAX(limits.maxCullDistances);
+    Resources.maxCombinedClipAndCullDistances             = CLAMP_TO_INT_MAX(limits.maxCombinedClipAndCullDistances);
+    Resources.maxSamples                                  = (max_sampled_image_samples > max_storage_image_samples) ? CLAMP_TO_INT_MAX(max_sampled_image_samples)                                                                                                                    : CLAMP_TO_INT_MAX(max_storage_image_samples);
+    Resources.limits.nonInductiveForLoops                 = 1;
+    Resources.limits.whileLoops                           = 1;
+    Resources.limits.doWhileLoops                         = 1;
+    Resources.limits.generalUniformIndexing               = 1;
     Resources.limits.generalAttributeMatrixVectorIndexing = 1;
-    Resources.limits.generalVaryingIndexing = 1;
-    Resources.limits.generalSamplerIndexing = 1;
-    Resources.limits.generalVariableIndexing = 1;
-    Resources.limits.generalConstantMatrixVectorIndexing = 1;
+    Resources.limits.generalVaryingIndexing               = 1;
+    Resources.limits.generalSamplerIndexing               = 1;
+    Resources.limits.generalVariableIndexing              = 1;
+    Resources.limits.generalConstantMatrixVectorIndexing  = 1;
 }
 
 }
